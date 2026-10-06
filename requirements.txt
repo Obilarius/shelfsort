@@ -1,0 +1,5 @@
+PySide6>=6.7
+guessit>=3.8
+requests>=2.31
+send2trash>=1.8
+pytest>=8

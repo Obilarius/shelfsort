@@ -1,0 +1,338 @@
+"""Episode lists exactly as Plex numbers them (respecting each show's chosen episode ordering).
+
+The local server only knows episodes that have a file. Plex's metadata provider returns the full
+list for the show's ordering (e.g. TheTVDB "BBC iPlayer"), so files can be renumbered to match.
+"""
+from __future__ import annotations
+
+import difflib
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import requests
+
+from .matcher import norm
+from .naming import episode_code
+from .plex import Plex
+
+PROVIDER = "https://metadata.provider.plex.tv/library/metadata"
+_PAREN = re.compile(r"\s*[\(\[][^)\]]*[\)\]]")
+_PLACEHOLDER = re.compile(r"^(episode|folge)\s*\d+$", re.IGNORECASE)
+
+# The library-wide setting uses older names: "aired" is TheTVDB, not TMDB.
+LIBRARY_ORDERING = {"aired": "tvdbAiring", "dvd": "tvdbDvd", "absolute": "tvdbAbsolute", "tmdbAiring": "tmdbAiring"}
+ORDERING_LABELS = {"tmdbAiring": "TMDB (Ausstrahlung)", "tvdbAiring": "TheTVDB (Ausstrahlung)",
+                   "tvdbDvd": "TheTVDB (DVD)", "tvdbAbsolute": "TheTVDB (Absolut)"}
+
+
+@dataclass
+class PlexEpisode:
+    season: int
+    episode: int
+    title: str
+    alt_titles: list[str] = field(default_factory=list)  # e.g. English, for files named "The Star Beast"
+    summary: str = ""
+    thumb: str | None = None  # full image URL
+    air_date: str = ""
+    guid: str = ""  # same episode across orderings
+
+    def info(self) -> dict:
+        """Same shape as a TMDB episode, for the details panel."""
+        return {"name": self.title, "overview": self.summary, "still_url": self.thumb, "air_date": self.air_date,
+                "season_number": self.season, "episode_number": self.episode, "source": "Plex"}
+
+    def score(self, title: str) -> float:
+        return max((similar(title, t) for t in [self.title, *self.alt_titles] if not is_placeholder(t)),
+                   default=0.0)
+
+
+@dataclass
+class PlexShow:
+    title: str
+    rating_key: str
+    guid: str
+    ordering: str  # effective ordering (own setting or library default)
+    local_dir: Path
+    own_ordering: str | None = None  # None: follows the library default
+    options: list[tuple[str, str]] = field(default_factory=list)  # (value, label) Plex offers for this show
+    episodes: list[PlexEpisode] = field(default_factory=list)
+
+    def label(self, value: str) -> str:
+        return dict(self.options).get(value) or ORDERING_LABELS.get(value, value)
+
+
+@dataclass
+class OrderingOption:
+    value: str
+    label: str
+    in_flow: list[str] = field(default_factory=list)  # "S00E05 Die letzte Botschaft → S12E09"
+    still_special: list[str] = field(default_factory=list)
+    missing: list[str] = field(default_factory=list)  # specials the ordering doesn't list at all
+
+
+@dataclass
+class SpecialsReport:
+    show: PlexShow
+    specials: list[str]  # titles in season 0 with the current ordering
+    options: list[OrderingOption]
+
+    @property
+    def best(self) -> OrderingOption | None:
+        good = [o for o in self.options if o.in_flow]
+        return max(good, key=lambda o: (len(o.in_flow), -len(o.missing))) if good else None
+
+
+def clean_title(t: str) -> str:
+    """'Die Schneemänner (Christmas Special)' -> 'Die Schneemänner'."""
+    return _PAREN.sub("", t or "").strip()
+
+
+def similar(a: str, b: str) -> float:
+    """0..1 similarity of two episode titles (ignores case, umlaut spelling, '(Special)' suffixes)."""
+    na, nb = norm(clean_title(a)), norm(clean_title(b))
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    # "Weihnachtsspecial 2012 - Die Schneemänner" vs "Die Schneemänner" - but not "Monster"
+    # inside "Götter und Monster": the contained title must be long enough to be telling.
+    if min(len(na), len(nb)) >= 10 and (na in nb or nb in na):
+        return 0.95
+    return difflib.SequenceMatcher(None, na, nb).ratio()
+
+
+def is_placeholder(title: str) -> bool:
+    return not title or bool(_PLACEHOLDER.match(title.strip()))
+
+
+def _parse_enum(enum: str) -> list[tuple[str, str]]:
+    """'":Library default|tmdbAiring:The Movie Database (Aired)|…' -> [(value, label)] without the default."""
+    out = []
+    for part in (enum or "").split("|"):
+        value, _, label = part.partition(":")
+        if value:
+            out.append((value, ORDERING_LABELS.get(value, label)))
+    return out
+
+
+class PlexCatalog:
+    def __init__(self, plex: Plex, language: str = "de-DE"):
+        self.plex = plex
+        self.lang = language.split("-")[0]
+        self.s = requests.Session()
+        self.s.headers.update({"X-Plex-Token": plex.token, "Accept": "application/json",
+                               "X-Plex-Language": self.lang})
+        self._lists: dict[tuple[str, str], list[PlexEpisode]] = {}
+
+    def _provider(self, path: str, ordering: str | None, language: str | None = None) -> list[dict]:
+        params = {"episodeOrder": ordering} if ordering else {}
+        headers = {"X-Plex-Language": language} if language else {}
+        # The provider pages at 20 items by default - seasons with 22 episodes would lose the last two.
+        items: list[dict] = []
+        while True:
+            r = self.s.get(f"{PROVIDER}/{path}", headers=headers, timeout=20,
+                           params={**params, "X-Plex-Container-Start": len(items), "X-Plex-Container-Size": 100})
+            r.raise_for_status()
+            mc = r.json().get("MediaContainer", {})
+            page = mc.get("Metadata", [])
+            items += page
+            if not page or len(items) >= int(mc.get("totalSize") or 0):
+                return items
+
+    def _section(self, tv_root: Path) -> dict:
+        section = next((s for s in self.plex.sections()
+                        if s["type"] == "show" and any(Plex._basename(l) == tv_root.name.lower()
+                                                       for l in s["locations"])), None)
+        if not section:
+            raise RuntimeError(f"Keine Plex-Serienbibliothek mit Ordner „{tv_root.name}“ gefunden.")
+        return section
+
+    def shows(self, tv_root: Path, progress=None) -> dict[str, PlexShow]:
+        """Plex-matched shows of the library whose folder lives under tv_root, keyed by lower-case local path."""
+        section = self._section(tv_root)
+        lib_value = next((p.get("value") for p in self.plex._get(f"/library/sections/{section['key']}/prefs")
+                          .get("MediaContainer", {}).get("Setting", []) if p.get("id") == "showOrdering"), None)
+        default_order = LIBRARY_ORDERING.get(lib_value or "", "tvdbAiring")
+        items = [s for s in self.plex._get(f"/library/sections/{section['key']}/all")
+                 .get("MediaContainer", {}).get("Metadata", [])
+                 if str(s.get("guid", "")).startswith("plex://show/")]  # matched by the Plex agent
+
+        def load(s):
+            return s, self.plex._get(f"/library/metadata/{s['ratingKey']}",
+                                     includePreferences=1)["MediaContainer"]["Metadata"][0]
+
+        out: dict[str, PlexShow] = {}
+        with ThreadPoolExecutor(8) as pool:
+            for i, (s, meta) in enumerate(pool.map(load, items)):
+                if progress:
+                    progress(f"Plex: {s.get('title')}", i, len(items))
+                pref = next((p for p in meta.get("Preferences", {}).get("Setting", [])
+                             if p.get("id") == "showOrdering"), {})
+                own = meta.get("showOrdering") or pref.get("value") or None
+                for loc in meta.get("Location", []):
+                    path = loc["path"].replace("\\", "/").rstrip("/")
+                    for sec_loc in section["locations"]:
+                        base = sec_loc.replace("\\", "/").rstrip("/")
+                        if path.lower().startswith(base.lower() + "/"):
+                            local = tv_root.joinpath(*path[len(base) + 1:].split("/"))
+                            out[str(local).lower()] = PlexShow(
+                                s.get("title", ""), s["ratingKey"], s["guid"], own or default_order, local,
+                                own, _parse_enum(pref.get("enumValues", "")))
+        return out
+
+    def episode_list(self, show: PlexShow, ordering: str, languages: list[str] | None = None) -> list[PlexEpisode]:
+        """All episodes of a show in a given ordering (cached)."""
+        langs = languages or ([self.lang] + (["en"] if self.lang != "en" else []))
+        key = (show.guid, ordering, ",".join(langs))
+        if key in self._lists:
+            return self._lists[key]
+        pid = show.guid.rsplit("/", 1)[-1]
+        by_num: dict[tuple[int, int], PlexEpisode] = {}
+        for lang in langs:
+            seasons = [s for s in self._provider(f"{pid}/children", ordering, lang) if s.get("index") is not None]
+            with ThreadPoolExecutor(6) as pool:
+                children = list(pool.map(lambda s: self._provider(f"{s['ratingKey']}/children", ordering, lang),
+                                         seasons))
+            for season, eps in zip(seasons, children):
+                for e in eps:
+                    if e.get("index") is None:
+                        continue
+                    num = (int(season["index"]), int(e["index"]))
+                    title = e.get("title") or ""
+                    if num not in by_num:
+                        by_num[num] = PlexEpisode(*num, title, summary=e.get("summary") or "", thumb=e.get("thumb"),
+                                                  air_date=e.get("originallyAvailableAt") or "",
+                                                  guid=e.get("guid") or "")
+                    elif title and title != by_num[num].title:
+                        by_num[num].alt_titles.append(title)
+        result = sorted(by_num.values(), key=lambda e: (e.season, e.episode))
+        self._lists[key] = result
+        return result
+
+    def load_episodes(self, show: PlexShow) -> list[PlexEpisode]:
+        if not show.episodes:
+            show.episodes = self.episode_list(show, show.ordering)
+        return show.episodes
+
+    # --- specials check ---
+
+    def specials_report(self, show: PlexShow) -> SpecialsReport | None:
+        """Which orderings move the show's specials (season 0) into the regular seasons?"""
+        current = self.episode_list(show, show.ordering, [self.lang])
+        specials = [e for e in current if e.season == 0]
+        if not specials:
+            return None
+        options = []
+        for value, label in show.options:
+            if value == show.ordering or value == "tvdbAbsolute":  # absolute = one big season, no help
+                continue
+            other = {e.guid: e for e in self.episode_list(show, value, [self.lang]) if e.guid}
+            if not other:
+                continue  # ordering not available for this show
+            opt = OrderingOption(value, label)
+            for sp in specials:
+                e = other.get(sp.guid)
+                name = f"{episode_code(0, [sp.episode])} {sp.title}"
+                if e is None:
+                    opt.missing.append(name)
+                elif e.season == 0:
+                    opt.still_special.append(name)
+                else:
+                    opt.in_flow.append(f"{name}  →  {episode_code(e.season, [e.episode])}")
+            options.append(opt)
+        return SpecialsReport(show, [f"{episode_code(0, [e.episode])} {e.title}" for e in specials], options)
+
+    def set_ordering(self, show: PlexShow, value: str) -> None:
+        """Change the show's episode ordering in Plex and refresh its metadata."""
+        self.plex._put(f"/library/metadata/{show.rating_key}/prefs", showOrdering=value)
+        self.plex._put(f"/library/metadata/{show.rating_key}/refresh")
+        show.own_ordering = show.ordering = value
+        show.episodes = []
+
+
+def specials_overview(catalog: PlexCatalog, tv_root: Path, progress=None) -> tuple[list[SpecialsReport], list[str]]:
+    """Specials report for every show that has specials; returns (reports, errors)."""
+    shows = catalog.shows(tv_root)
+    reports, errors = [], []
+    with ThreadPoolExecutor(4) as pool:
+        futures = {pool.submit(catalog.specials_report, s): s for s in shows.values()}
+        for i, f in enumerate(as_completed(futures)):
+            show = futures[f]
+            if progress:
+                progress(f"Specials: {show.title}", i, len(futures))
+            try:
+                if r := f.result():
+                    reports.append(r)
+            except Exception as e:
+                errors.append(f"{show.title}: {e}")
+    return sorted(reports, key=lambda r: r.show.title.lower()), errors
+
+
+class PlexEpisodeSource:
+    """Lazy 'show folder -> Plex episode list' lookup for the import (loaded once per scan, on first use)."""
+
+    def __init__(self, catalog: PlexCatalog, tv_root: Path):
+        self.catalog = catalog
+        self.tv_root = tv_root
+        self._shows: dict[str, PlexShow] | None = None
+        self.error: str | None = None
+
+    def __call__(self, show_dir: Path) -> list[PlexEpisode] | None:
+        if self._shows is None:
+            try:
+                self._shows = self.catalog.shows(self.tv_root)
+            except Exception as e:  # Plex down -> import falls back to TMDB
+                self._shows, self.error = {}, str(e)
+        show = self._shows.get(str(show_dir).lower())
+        if not show:
+            return None
+        try:
+            return self.catalog.load_episodes(show)
+        except Exception as e:
+            self.error = str(e)
+            return None
+
+
+def find_by_title(episodes: list[PlexEpisode], title: str, near: tuple[int, int] | None = None,
+                  min_score: float = 0.85) -> tuple[PlexEpisode | None, float]:
+    """Best episode for a title.
+
+    Equally good candidates (two-parters, or Plex giving parts 1 and 2 the same name) are decided by
+    the distance to `near` - the number the file would have with its season's usual offset.
+    Returns None if nothing is close enough or the tie can't be broken.
+    """
+    scored = [(round(e.score(title), 2), e) for e in episodes]
+    scored = [x for x in scored if x[0] >= min_score]
+    if not scored:
+        return None, 0.0
+    top = max(s for s, _ in scored)
+    tops = [e for s, e in scored if s >= top - 0.02]
+    if len(tops) == 1:
+        return tops[0], top
+    if not near:
+        return None, top
+
+    def dist(e):
+        return (0 if e.season == near[0] else 1000) + abs(e.episode - near[1])
+
+    tops.sort(key=dist)
+    if dist(tops[0]) == dist(tops[1]):
+        return None, top
+    return tops[0], top
+
+
+def season_offsets(files: list[tuple[int, int, str]], episodes: list[PlexEpisode]) -> dict[int, int]:
+    """Typical shift per season from clear title matches: (season, episode, title) -> {season: delta}."""
+    deltas: dict[int, list[int]] = {}
+    for season, ep, title in files:
+        hit, _ = find_by_title(episodes, title, min_score=0.95)
+        if hit and hit.season == season:
+            deltas.setdefault(season, []).append(hit.episode - ep)
+    out = {}
+    for season, ds in deltas.items():
+        common = max(set(ds), key=ds.count)
+        if ds.count(common) >= 2:
+            out[season] = common
+    return out
