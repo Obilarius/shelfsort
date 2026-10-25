@@ -123,6 +123,34 @@ def test_no_false_moves(tmp_path):
     assert moves[placeholder.name] == "Show - S02E01 - Die Kreuzfahrt.mkv"
 
 
+def test_episode_source_finds_new_shows_by_tmdb_id(tmp_path):
+    from plex_renamer.plex_sync import PlexEpisodeSource, PlexShow
+
+    class FakeCatalog:
+        def __init__(self):
+            self.lists = []
+
+        def shows(self, tv_root):
+            return {}  # show not in the library yet
+
+        def library_ordering(self, tv_root):
+            return "tvdbAiring"
+
+        def match_show(self, tmdb_id):
+            return "plex://show/abc" if tmdb_id == 82728 else None
+
+        def load_episodes(self, show: PlexShow):
+            self.lists.append((show.guid, show.ordering))
+            return [PlexEpisode(3, 49, "Das Schild"), PlexEpisode(3, 50, "Überraschung")]
+
+    cat = FakeCatalog()
+    src = PlexEpisodeSource(cat, tmp_path)
+    eps = src(tmp_path / "Bluey {tmdb-82728}", 82728)
+    assert [e.title for e in eps] == ["Das Schild", "Überraschung"]
+    assert cat.lists == [("plex://show/abc", "tvdbAiring")]  # library default ordering
+    assert src(tmp_path / "Unbekannt", 1) is None
+
+
 def test_target_blocked_by_staying_file(tmp_path):
     tv = tmp_path / "tvshows"
     (tmp_path / "movies").mkdir()

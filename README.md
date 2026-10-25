@@ -30,7 +30,8 @@ py -3.12 -m venv .venv
 | Folge | `tvshows\Die wilden Siebziger {tmdb-52}\Season 05\Die wilden Siebziger - S05E04 - Die Wechseljahre.mkv` |
 
 - Bestehende Serienordner (per TMDB-ID erkannt) und Staffelordner (`Season 05` / `Staffel 13`) werden weiterverwendet.
-- Die Folgennummer kommt aus dem Dateinamen. Kennt Plex die Serie schon, kommt der Folgentitel aus Plex – in der Reihenfolge, die in Plex für die Serie eingestellt ist (z. B. Doctor Who „TheTVDB (BBC iPlayer)“). Sonst von TMDB.
+- Die Folgennummer kommt aus dem Dateinamen, der Folgentitel aus Plex: bei Serien in der Bibliothek in der dort eingestellten Reihenfolge (z. B. Doctor Who „TheTVDB (BBC iPlayer)“), bei neuen Serien in der Standard-Reihenfolge der Bibliothek – also so, wie Plex sie nach dem Import nummeriert. TMDB zählt manchmal anders (Bluey S03E49 ist dort ein Special). Nur ohne Plex-Token oder wenn Plex die Serie nicht kennt, kommt der Titel von TMDB.
+- Verschleierte Scene-Dateien (`dmpd-bluey.s03e02…`) werden über den Ordnernamen bzw. ohne Gruppen-Kürzel erkannt.
 - Untertitel (`Film.de.forced.srt`) wandern mit.
 - Für Windows verbotene Zeichen werden ersetzt: `F1: Der Film` → `F1 - Der Film`.
 

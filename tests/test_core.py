@@ -122,7 +122,7 @@ def test_import_uses_plex_ordering_for_known_shows(tmp_path, lib_dirs):
     plex = [PlexEpisode(7, 6, "Die Schneemänner", summary="Weihnachten 1892", thumb="https://x/t/p/original/a.jpg")]
     asked = []
 
-    def source(show_dir):
+    def source(show_dir, tmdb_id=None):
         asked.append(show_dir)
         return plex
 
@@ -131,6 +131,36 @@ def test_import_uses_plex_ordering_for_known_shows(tmp_path, lib_dirs):
     assert items[six].episode_info["overview"] == "Weihnachten 1892" and items[six].status == "ok"
     assert items[nine].status == "review" and "Plex-Reihenfolge unbekannt" in items[nine].note
     assert asked and asked[0] == tv / "Doctor Who {tmdb-57243}"
+
+
+def test_obfuscated_scene_files_use_folder_title(tmp_path, lib_dirs):
+    from plex_renamer.parse import parse_release
+    movies, tv = lib_dirs
+    FakeTMDB.shows[82728] = {"id": 82728, "name": "Bluey", "original_name": "Bluey", "first_air_date": "2018-10-01"}
+    dl = tmp_path / "dl"
+    pack = dl / "Bluey.S03.GERMAN.DL.1080p.WEB.H264-DMPD"
+    e2 = touch(pack / "Bluey.S03E02.GERMAN.DL.1080P.WEB.H264-DMPD" / "dmpd-bluey.s03e02.german.dl.1080p.web.h264.mkv")
+    e3 = touch(pack / "Bluey.S03E03.GERMAN.DL.1080P.WEB.H264-DMPD" / "dmpd-bluey.s03e03.german.dl.1080p.web.h264.mkv")
+    assert parse_release(e2).titles()[:2] == ["dmpd-bluey", "bluey"]
+    assert parse_release(Path("Spider-Man.2002.German.DL.1080p.mkv")).title == "Spider-Man"
+    assert parse_release(Path("Ant-Man.and.the.Wasp.2018.German.DL.mkv")).title == "Ant-Man and the Wasp"
+
+    items = {i.source: i for i in build_import_plan(dl, FakeTMDB(), Library(movies, tv), 0)}
+    assert items[e2].match.tmdb_id == 82728 and items[e2].match.confident
+    assert items[e3].target == tv / "Bluey {tmdb-82728}" / "Season 03" / "Bluey - S03E03.mkv"
+
+
+def test_override_for_many_files_keeps_their_numbers(tmp_path, lib_dirs):
+    movies, tv = lib_dirs
+    dl = tmp_path / "dl"
+    a = touch(dl / "xyz.S05E04.mkv")
+    b = touch(dl / "xyz.S05E05.mkv")
+    items = build_import_plan(dl, FakeTMDB(), Library(movies, tv), 0)
+    assert all(i.status == "review" for i in items)  # unknown show
+    new = [i.replan(Override("show", 52))[0] for i in items]  # as the GUI does for a multi-selection
+    targets = {i.source: i.target.name for i in new}
+    assert targets[a] == "Die wilden Siebziger - S05E04 - Die Wechseljahre.mkv"
+    assert targets[b] == "Die wilden Siebziger - S05E05 - Folge Fünf.mkv"
 
 
 def test_import_existing_title_without_id_needs_review(tmp_path, lib_dirs):

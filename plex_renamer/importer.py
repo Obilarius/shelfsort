@@ -12,8 +12,8 @@ from .plan import Override, PlanItem, finalize
 from .plex_sync import is_placeholder
 
 ProgressFn = Callable[[str, int, int], None]
-# show folder -> episode list in the order Plex uses for that show (None: unknown to Plex)
-EpisodeSource = Callable[[Path], "list | None"]
+# (show folder, TMDB id) -> episode list in the order Plex uses / will use for that show (None: unknown)
+EpisodeSource = Callable[[Path, "int | None"], "list | None"]
 
 
 def release_dir(video: Path, root: Path) -> Path | None:
@@ -50,9 +50,20 @@ def plan_import(video: Path, root: Path, tmdb, lib: Library, override: Override 
     return item
 
 
+def _find_any(find, tmdb, p):
+    """First confident match over the parsed title and its fallbacks, else the first match at all."""
+    first = None
+    for title in p.titles():
+        m = find(tmdb, title, p.year)
+        if m and m.confident:
+            return m
+        first = first or m
+    return first
+
+
 def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None) -> None:
     p = item.parsed
-    match = movie_by_id(tmdb, ov.tmdb_id) if ov else find_movie(tmdb, p.title, p.year)
+    match = movie_by_id(tmdb, ov.tmdb_id) if ov else _find_any(find_movie, tmdb, p)
     if not match:
         item.status, item.note = "review", f"Kein TMDB-Treffer für „{p.title}“ – Doppelklick zum Suchen"
         return
@@ -85,7 +96,7 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     p = item.parsed
     season = ov.season if ov and ov.season is not None else p.season
     episodes = ov.episodes if ov and ov.episodes else p.episodes
-    match = show_by_id(tmdb, ov.tmdb_id) if ov else find_show(tmdb, p.title, p.year)
+    match = show_by_id(tmdb, ov.tmdb_id) if ov else _find_any(find_show, tmdb, p)
     if not match:
         item.status, item.note = "review", f"Keine Serie „{p.title}“ bei TMDB – Doppelklick zum Suchen"
         return
@@ -97,7 +108,8 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     show_dir = lib.show_by_id.get(match.tmdb_id) or lib.tv_root / show_folder(match.title, match.tmdb_id)
     # Shows Plex already knows: titles come from the Plex list in the show's chosen ordering
     # (e.g. TheTVDB "BBC iPlayer"), so the name matches what Plex shows for this number.
-    in_plex = plex_eps(show_dir) if plex_eps and match.tmdb_id in lib.show_by_id else None
+    # New shows too: Plex will number them by the library's default ordering once imported.
+    in_plex = plex_eps(show_dir, match.tmdb_id) if plex_eps else None
     if in_plex:
         by_num = {(e.season, e.episode): e for e in in_plex}
 

@@ -149,12 +149,25 @@ class PlexCatalog:
             raise RuntimeError(f"Keine Plex-Serienbibliothek mit Ordner „{tv_root.name}“ gefunden.")
         return section
 
+    def library_ordering(self, tv_root: Path, section: dict | None = None) -> str:
+        """Ordering a show gets in this library unless it has its own setting."""
+        section = section or self._section(tv_root)
+        lib_value = next((p.get("value") for p in self.plex._get(f"/library/sections/{section['key']}/prefs")
+                          .get("MediaContainer", {}).get("Setting", []) if p.get("id") == "showOrdering"), None)
+        return LIBRARY_ORDERING.get(lib_value or "", "tvdbAiring")
+
+    def match_show(self, tmdb_id: int) -> str | None:
+        """Plex guid of a show that is not in the library yet, found by its TMDB id."""
+        r = self.s.get(f"{PROVIDER}/matches", params={"type": 2, "guid": f"tmdb://{tmdb_id}"}, timeout=20)
+        r.raise_for_status()
+        hits = r.json().get("MediaContainer", {}).get("Metadata", [])
+        guid = hits[0].get("guid", "") if hits else ""
+        return guid if guid.startswith("plex://show/") else None
+
     def shows(self, tv_root: Path, progress=None) -> dict[str, PlexShow]:
         """Plex-matched shows of the library whose folder lives under tv_root, keyed by lower-case local path."""
         section = self._section(tv_root)
-        lib_value = next((p.get("value") for p in self.plex._get(f"/library/sections/{section['key']}/prefs")
-                          .get("MediaContainer", {}).get("Setting", []) if p.get("id") == "showOrdering"), None)
-        default_order = LIBRARY_ORDERING.get(lib_value or "", "tvdbAiring")
+        default_order = self.library_ordering(tv_root, section)
         items = [s for s in self.plex._get(f"/library/sections/{section['key']}/all")
                  .get("MediaContainer", {}).get("Metadata", [])
                  if str(s.get("guid", "")).startswith("plex://show/")]  # matched by the Plex agent
@@ -271,21 +284,41 @@ def specials_overview(catalog: PlexCatalog, tv_root: Path, progress=None) -> tup
 
 
 class PlexEpisodeSource:
-    """Lazy 'show folder -> Plex episode list' lookup for the import (loaded once per scan, on first use)."""
+    """Lazy 'show -> Plex episode list' lookup for the import (loaded once per scan, on first use).
+
+    Shows already in the library use their ordering in Plex. New shows are looked up by TMDB id
+    and use the library's default ordering - the numbering Plex will apply once they are imported
+    (TMDB often counts differently, e.g. Bluey S03E49 is a special there).
+    """
 
     def __init__(self, catalog: PlexCatalog, tv_root: Path):
         self.catalog = catalog
         self.tv_root = tv_root
         self._shows: dict[str, PlexShow] | None = None
+        self._new: dict[int, PlexShow | None] = {}
+        self._default = "tvdbAiring"
         self.error: str | None = None
 
-    def __call__(self, show_dir: Path) -> list[PlexEpisode] | None:
+    def is_new(self, show_dir: Path) -> bool:
+        return self._shows is not None and str(show_dir).lower() not in self._shows
+
+    def __call__(self, show_dir: Path, tmdb_id: int | None = None) -> list[PlexEpisode] | None:
         if self._shows is None:
             try:
                 self._shows = self.catalog.shows(self.tv_root)
+                self._default = self.catalog.library_ordering(self.tv_root)
             except Exception as e:  # Plex down -> import falls back to TMDB
                 self._shows, self.error = {}, str(e)
+                return None
         show = self._shows.get(str(show_dir).lower())
+        if not show and tmdb_id is not None:
+            if tmdb_id not in self._new:
+                try:
+                    guid = self.catalog.match_show(tmdb_id)
+                except Exception as e:
+                    guid, self.error = None, str(e)
+                self._new[tmdb_id] = PlexShow("", "", guid, self._default, show_dir) if guid else None
+            show = self._new[tmdb_id]
         if not show:
             return None
         try:

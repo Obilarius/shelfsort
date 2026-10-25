@@ -10,7 +10,7 @@ from typing import Callable
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
+                               QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
@@ -22,7 +22,7 @@ from .match_dialog import MatchDialog
 from .executor import Reporter, TransferInfo, execute
 from .importer import build_import_plan
 from .library import Library
-from .plan import PlanItem
+from .plan import Override, PlanItem
 from .plex import Plex
 from .plex_sync import PlexCatalog, PlexEpisodeSource, specials_overview
 from .specials_tab import SpecialsTab
@@ -134,6 +134,9 @@ class PlanTable(QTableWidget):
                 # never auto-select deletions or conflicts
                 allowed = it.kind != "empty" and it.status not in ("conflict", "error")
                 cell.setCheckState(Qt.Checked if on and allowed else Qt.Unchecked)
+
+    def selected_rows(self) -> list[int]:
+        return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
     def update_item(self, it: PlanItem, state: str) -> None:
         """Live status of one row while executing."""
@@ -283,9 +286,31 @@ class MainWindow(QMainWindow):
         """Table on the left, details of the selected row (cover, metadata) on the right."""
         details = DetailsPanel()
         table.details = details
-        table.currentCellChanged.connect(
-            lambda row, *_: details.show_item(table.items[row] if 0 <= row < len(table.items) else None))
+        def selection_changed():
+            rows = table.selected_rows()
+            if len(rows) > 1:
+                details.show_multi(len(rows))
+            else:
+                row = table.currentRow()
+                details.show_item(table.items[row] if 0 <= row < len(table.items) else None)
+
+        table.itemSelectionChanged.connect(selection_changed)
         details.rematch_requested.connect(lambda: self._rematch(table, table.currentRow(), import_mode))
+
+        # right-click: same action, works with a multi-row selection
+        table.setContextMenuPolicy(Qt.CustomContextMenu)
+
+        def context_menu(pos):
+            row = table.rowAt(pos.y())
+            if row < 0:
+                return
+            n = len(table.selected_rows()) if row in table.selected_rows() else 1
+            menu = QMenu(table)
+            act = menu.addAction(f"Treffer für {n} Einträge wählen…" if n > 1 else "Anderen Treffer wählen…")
+            if menu.exec(table.viewport().mapToGlobal(pos)) == act:
+                self._rematch(table, row, import_mode)
+
+        table.customContextMenuRequested.connect(context_menu)
         split = QSplitter(Qt.Horizontal)
         split.addWidget(table)
         split.addWidget(details)
@@ -298,7 +323,8 @@ class MainWindow(QMainWindow):
         all_btn.clicked.connect(lambda: table.set_all(True))
         none_btn = QPushButton("Keine")
         none_btn.clicked.connect(lambda: table.set_all(False))
-        hint = QLabel("Doppelklick auf eine Zeile: Treffer manuell wählen. Gelb = bitte prüfen, nicht vorausgewählt.")
+        hint = QLabel("Doppelklick oder Rechtsklick: Treffer manuell wählen – mit Shift/Strg auch für mehrere Zeilen. "
+                      "Gelb = bitte prüfen, nicht vorausgewählt.")
         hint.setStyleSheet("color: gray")
         row = QHBoxLayout()
         row.addWidget(all_btn)
@@ -533,26 +559,48 @@ class MainWindow(QMainWindow):
         self.log(f"{len(items)} Einträge: {summary}")
 
     def _rematch(self, table: PlanTable, row: int, import_mode: bool) -> None:
-        it = table.items[row]
-        if not it.replan or not self.tmdb or self._thread:
+        """Pick a TMDB match by hand - for the row, or for all selected rows at once."""
+        if row < 0 or row >= len(table.items) or not self.tmdb or self._thread:
             return
+        rows = table.selected_rows()
+        if row not in rows:
+            rows = [row]
+        targets = [table.items[r] for r in rows if table.items[r].replan]
+        if not targets:
+            return
+        it = table.items[row] if table.items[row].replan else targets[0]
+        multi = len(targets) > 1
         p = it.parsed
         query = it.match.title if it.match else (p.title if p else it.source.name)
         year = it.match.year if it.match else (p.year if p else None)
+        context = table._rel(it.source)
+        if multi:
+            context = f"{len(targets)} Einträge (u. a. {it.source.name}) – jede Datei behält ihre Staffel/Folge"
         dlg = MatchDialog(self.tmdb, it.dialog_kind, query, year,
                           season=p.season if p else None, episodes=p.episodes if p else None,
-                          episode_fields=import_mode, kind_fixed=not import_mode,
-                          context=table._rel(it.source), parent=self)
+                          episode_fields=import_mode and not multi, kind_fixed=not import_mode,
+                          context=context, parent=self)
         if not dlg.exec() or not dlg.result_override:
             return
-        try:
-            new = it.replan(dlg.result_override)
-        except Exception as e:
-            QMessageBox.warning(self, "TMDB", str(e))
-            return
-        table.replace_group(it.group, new)
-        table.selectRow(min(row, table.rowCount() - 1))
+        ov = dlg.result_override
+        if multi:  # same show/movie for all, but every file keeps its own numbers
+            ov = Override(ov.kind, ov.tmdb_id)
+        first_group, done, errors = it.group, set(), []
+        for t in targets:
+            if t.group in done:
+                continue
+            done.add(t.group)
+            try:
+                table.replace_group(t.group, t.replan(ov))
+            except Exception as e:
+                errors.append(f"{t.source.name}: {e}")
+        if errors:
+            QMessageBox.warning(self, "TMDB", "\n".join(errors[:10]))
+        new_row = next((i for i, x in enumerate(table.items) if x.group == first_group), 0)
+        table.selectRow(min(new_row, table.rowCount() - 1))
         table.details.show_item(table.items[table.currentRow()] if table.currentRow() >= 0 else None)
+        if multi:
+            self.log(f"Treffer für {len(done)} Einträge gesetzt.")
 
     def run_plan(self, table: PlanTable) -> None:
         table.sync()

@@ -35,6 +35,11 @@ class Parsed:
     season: int | None = None
     episodes: list[int] = field(default_factory=list)
     part: int | None = None
+    # other readings to try if `title` finds nothing ("dmpd-bluey" -> "bluey", folder "Bluey.S03E02…")
+    alt_titles: list[str] = field(default_factory=list)
+
+    def titles(self) -> list[str]:
+        return [t for t in dict.fromkeys([self.title, *self.alt_titles]) if t]
 
 
 def _raise(err: OSError) -> None:
@@ -113,12 +118,26 @@ def _first(v):
 
 def parse_release(path: Path) -> Parsed:
     info = _guess(path.name)
+    parent = _guess(path.parent.name + path.suffix)
     if not info.get("title"):
-        parent = _guess(path.parent.name + path.suffix)
         info = {**parent, **{k: v for k, v in info.items() if v}}
 
-    title = _first(info.get("title")) or ""
-    year = _first(info.get("year"))
+    title = str(_first(info.get("title")) or "")
+    alts = []
+    # guessit reads "Spider-Man.2002…" as group "Spider" + title "Man": glue it back together
+    group = _first(info.get("release_group"))
+    plain = re.sub(r"[._]", " ", path.name.lower())
+    if group and title and plain.startswith(f"{group}-{title}".lower()):
+        alts.append(title)
+        title = f"{group}-{title}"
+    # Fallbacks: obfuscated scene files put the group in front ("dmpd-bluey.s03e02…"),
+    # while the release folder usually carries the clean name ("Bluey.S03E02…-DMPD").
+    # all lower case only, so "Spider-Man" never turns into "Man"
+    if title == title.lower() and (m := re.match(r"^[a-z0-9]{2,8}-(.+)$", title)):
+        alts.append(m.group(1))
+    if parent_title := _first(parent.get("title")):
+        alts.append(str(parent_title))
+    year = _first(info.get("year")) or _first(parent.get("year"))
     part = _first(info.get("part")) or _first(info.get("cd"))
     if info.get("type") == "episode":
         season = _first(info.get("season"))
@@ -127,8 +146,8 @@ def parse_release(path: Path) -> Parsed:
         nums = episode_numbers(path.name)
         if season is None and nums:
             season, episodes = nums
-        return Parsed("episode", str(title), year, season, [int(e) for e in episodes], part)
-    return Parsed("movie", str(title), year, part=part)
+        return Parsed("episode", title, year, season, [int(e) for e in episodes], part, alts)
+    return Parsed("movie", title, year, part=part, alt_titles=alts)
 
 
 def companions(video: Path) -> list[Path]:

@@ -94,8 +94,21 @@ class DetailsPanel(QScrollArea):
         self.setWidget(body)
         self.show_item(None)
 
+    def show_multi(self, count: int) -> None:
+        """Several rows selected: offer one match for all of them."""
+        self._current = None
+        for w in (self.kind, self.poster, self.title, self.meta, self.link, self.overview,
+                  self.ep_header, self.still, self.ep_overview, self.source, self.note):
+            w.setVisible(False)
+        self.empty.setVisible(True)
+        self.empty.setText(f"{count} Einträge ausgewählt.\nEin Treffer für alle – jede Datei behält ihre "
+                           f"eigene Staffel- und Folgennummer.")
+        self.rematch.setText(f"Treffer für {count} Einträge wählen…")
+        self.rematch.setVisible(True)
+
     def show_item(self, it: PlanItem | None) -> None:
         self._current = it
+        self.rematch.setText("Anderen Treffer wählen…")
         m = it.match if it else None
         info = it.episode_info if it else None
 
