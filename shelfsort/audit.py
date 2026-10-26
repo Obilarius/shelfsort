@@ -16,7 +16,7 @@ from .naming import (SEASON_DIR_RE, VALID_MOVIE_DIR, VALID_SHOW_DIR, YEAR_SUFFIX
 from .parse import (RELEASE_JUNK, current_episode_title, episode_numbers, has_video, parse_release,
                     walk_videos)
 from .plan import Op, Override, PlanItem, finalize
-from .plex_sync import PlexCatalog, PlexEpisode, find_by_title, is_placeholder, season_offsets
+from .plex_sync import PlexCatalog, PlexEpisode, ProviderError, find_by_title, is_placeholder, season_offsets
 
 _LOOSE_CODE = re.compile(r"S\d{1,3}E[\d,.]+(?:-?E\d+)*\s*-\s*", re.IGNORECASE)
 
@@ -49,9 +49,16 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
             progress(f"Prüfe {d.parent.name}\\{d.name}", i, len(jobs))
         try:
             if fn is audit_show_dir and str(d).lower() in plex_shows:
-                eps = catalog.load_episodes(plex_shows[str(d).lower()])
-                items += audit_show_dir(d, tmdb, lib, opts, plex_eps=eps)
-                continue
+                try:
+                    eps = catalog.load_episodes(plex_shows[str(d).lower()])
+                except ProviderError as e:
+                    # unofficial service down/changed: say so once, continue without Plex sync
+                    items.append(PlanItem("show_dir", lib.tv_root, "plex-provider", status="error",
+                                          note=f"{e} – Plex-Abgleich übersprungen, Serien nur nach Namen geprüft"))
+                    plex_shows = {}
+                else:
+                    items += audit_show_dir(d, tmdb, lib, opts, plex_eps=eps)
+                    continue
             items += fn(d, tmdb, lib, opts)
         except Exception as e:
             items.append(PlanItem("movie" if fn is audit_movie_dir else "show_dir", d, str(d),

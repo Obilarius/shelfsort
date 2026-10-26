@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from plex_renamer.audit import AuditOptions, build_audit_plan
-from plex_renamer.executor import Reporter, execute
-from plex_renamer.importer import build_import_plan
-from plex_renamer.library import Library
-from plex_renamer.naming import episode_name, movie_folder, sanitize
-from plex_renamer.parse import current_episode_title, episode_numbers
-from plex_renamer.plan import Override
+from shelfsort.audit import AuditOptions, build_audit_plan
+from shelfsort.executor import Reporter, execute
+from shelfsort.importer import build_import_plan
+from shelfsort.library import Library
+from shelfsort.naming import episode_name, movie_folder, sanitize
+from shelfsort.parse import current_episode_title, episode_numbers
+from shelfsort.plan import Override
 
 
 class FakeTMDB:
@@ -73,22 +73,22 @@ def test_naming():
 
 
 def test_folder_title_year_keeps_numbers_in_titles():
-    from plex_renamer.audit import _guess_title_year
+    from shelfsort.audit import _guess_title_year
     assert _guess_title_year("10 Cloverfield Lane") == ("10 Cloverfield Lane", None)
     assert _guess_title_year("Blade Runner 2049") == ("Blade Runner 2049", None)
     assert _guess_title_year("2001 Odyssee im Weltraum (1968)") == ("2001 Odyssee im Weltraum", 1968)
     assert _guess_title_year("Some.Movie.2016.German.DL.1080p.BluRay.x264-GRP") == ("Some Movie", 2016)
     assert _guess_title_year(
-        "Pressure.2026.German.5.1.MD.DL.2160p.DV.HDR.Bluray.x265-LiNEUP - by Jennifer_Jareau") == ("Pressure", 2026)
+        "Pressure.2026.German.5.1.MD.DL.2160p.DV.HDR.Bluray.x265-GRP - by uploader") == ("Pressure", 2026)
 
 
 def test_import_movie_and_episode(tmp_path, lib_dirs):
     movies, tv = lib_dirs
     dl = tmp_path / "dl"
-    rel = "Pressure.2026.German.DL.2160p.x265-LiNEUP - by Someone/Pressure.2026.German.DL.2160p.x265-LiNEUP"
-    v = touch(dl / rel / "Pressure.2026.German.DL.2160p.x265-LiNEUP.mkv")
-    touch(dl / rel / "Pressure.2026.German.DL.2160p.x265-LiNEUP.de.forced.srt")
-    touch(dl / rel / "lineup.nfo")
+    rel = "Pressure.2026.German.DL.2160p.x265-GRP - by Someone/Pressure.2026.German.DL.2160p.x265-GRP"
+    v = touch(dl / rel / "Pressure.2026.German.DL.2160p.x265-GRP.mkv")
+    touch(dl / rel / "Pressure.2026.German.DL.2160p.x265-GRP.de.forced.srt")
+    touch(dl / rel / "grp.nfo")
     touch(dl / rel / "Sample" / "pressure-sample.mkv")
     e = touch(dl / "Doctor.Who.2005.S13E01.German.DL.1080p.WEB.x264-GRP.mkv")
     (tv / "Doctor Who {tmdb-57243}" / "Staffel 13").mkdir(parents=True)
@@ -113,7 +113,7 @@ def test_import_movie_and_episode(tmp_path, lib_dirs):
 
 
 def test_import_uses_plex_ordering_for_known_shows(tmp_path, lib_dirs):
-    from plex_renamer.plex_sync import PlexEpisode
+    from shelfsort.plex_sync import PlexEpisode
     movies, tv = lib_dirs
     (tv / "Doctor Who {tmdb-57243}" / "Staffel 07").mkdir(parents=True)
     dl = tmp_path / "dl"
@@ -134,14 +134,14 @@ def test_import_uses_plex_ordering_for_known_shows(tmp_path, lib_dirs):
 
 
 def test_obfuscated_scene_files_use_folder_title(tmp_path, lib_dirs):
-    from plex_renamer.parse import parse_release
+    from shelfsort.parse import parse_release
     movies, tv = lib_dirs
     FakeTMDB.shows[82728] = {"id": 82728, "name": "Bluey", "original_name": "Bluey", "first_air_date": "2018-10-01"}
     dl = tmp_path / "dl"
-    pack = dl / "Bluey.S03.GERMAN.DL.1080p.WEB.H264-DMPD"
-    e2 = touch(pack / "Bluey.S03E02.GERMAN.DL.1080P.WEB.H264-DMPD" / "dmpd-bluey.s03e02.german.dl.1080p.web.h264.mkv")
-    e3 = touch(pack / "Bluey.S03E03.GERMAN.DL.1080P.WEB.H264-DMPD" / "dmpd-bluey.s03e03.german.dl.1080p.web.h264.mkv")
-    assert parse_release(e2).titles()[:2] == ["dmpd-bluey", "bluey"]
+    pack = dl / "Bluey.S03.GERMAN.DL.1080p.WEB.H264-ABC"
+    e2 = touch(pack / "Bluey.S03E02.GERMAN.DL.1080P.WEB.H264-ABC" / "abc-bluey.s03e02.german.dl.1080p.web.h264.mkv")
+    e3 = touch(pack / "Bluey.S03E03.GERMAN.DL.1080P.WEB.H264-ABC" / "abc-bluey.s03e03.german.dl.1080p.web.h264.mkv")
+    assert parse_release(e2).titles()[:2] == ["abc-bluey", "bluey"]
     assert parse_release(Path("Spider-Man.2002.German.DL.1080p.mkv")).title == "Spider-Man"
     assert parse_release(Path("Ant-Man.and.the.Wasp.2018.German.DL.mkv")).title == "Ant-Man and the Wasp"
 

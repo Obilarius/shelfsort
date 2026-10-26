@@ -1,27 +1,33 @@
-"""Settings stored in %APPDATA%\\plex-renamer\\config.json (outside the repo - holds API keys)."""
+"""Settings stored in %APPDATA%\\ShelfSort\\config.json (outside the repo - holds API keys)."""
 from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-CONFIG_PATH = Path(os.environ.get("APPDATA", Path.home())) / "plex-renamer" / "config.json"
+_APPDATA = Path(os.environ.get("APPDATA", Path.home()))
+CONFIG_PATH = _APPDATA / "ShelfSort" / "config.json"
+_OLD_CONFIG_PATH = _APPDATA / "plex-renamer" / "config.json"  # before the rename to ShelfSort
 
 
 @dataclass
 class Config:
     tmdb_key: str = ""
     language: str = "de-DE"
-    plex_url: str = "http://192.168.1.5:32400"
+    plex_url: str = "http://localhost:32400"
     plex_token: str = ""
-    movies_root: str = r"X:\plex_media\movies"
-    tv_root: str = r"X:\plex_media\tvshows"
+    movies_root: str = ""
+    tv_root: str = ""
     min_video_mb: int = 100
     last_import_dir: str = ""
 
     @classmethod
     def load(cls) -> "Config":
+        if not CONFIG_PATH.exists() and _OLD_CONFIG_PATH.exists():
+            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(_OLD_CONFIG_PATH, CONFIG_PATH)
         try:
             data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         except (OSError, ValueError):

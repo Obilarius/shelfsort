@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from plex_renamer.audit import AuditOptions, audit_show_dir
-from plex_renamer.executor import Reporter, execute
-from plex_renamer.library import Library
-from plex_renamer.plan import finalize
-from plex_renamer.plex_sync import PlexEpisode, find_by_title, similar
+from shelfsort.audit import AuditOptions, audit_show_dir
+from shelfsort.executor import Reporter, execute
+from shelfsort.library import Library
+from shelfsort.plan import finalize
+from shelfsort.plex_sync import PlexEpisode, find_by_title, similar
 
 # Doctor Who, TheTVDB "BBC iPlayer" order (as Plex's metadata provider returns it, German titles)
 EPS = [
@@ -70,7 +70,7 @@ def test_doctor_who_renumbering(tmp_path):
     names = sorted(p.name for p in s7.iterdir())
     assert "Doctor Who - S07E06 - Die Schneemänner (Christmas Special).mkv" in names
     assert "Doctor Who - S07E09 - Kalter Krieg.mkv" in names
-    assert not any("plexrenamer-tmp" in n for n in names)
+    assert not any("shelfsort-tmp" in n for n in names)
     # contents moved with their names (no swaps mixed up)
     assert (s7 / "Doctor Who - S07E07 - Die Glocken von Saint John.mkv").read_bytes() == \
         b"Doctor Who - S07E06 - Die Glocken von Saint John.mkv"
@@ -124,7 +124,7 @@ def test_no_false_moves(tmp_path):
 
 
 def test_episode_source_finds_new_shows_by_tmdb_id(tmp_path):
-    from plex_renamer.plex_sync import PlexEpisodeSource, PlexShow
+    from shelfsort.plex_sync import PlexEpisodeSource, PlexShow
 
     class FakeCatalog:
         def __init__(self):

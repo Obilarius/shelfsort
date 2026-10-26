@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from plex_renamer import executor
-from plex_renamer.executor import Reporter, execute
-from plex_renamer.plan import Op, PlanItem
+from shelfsort import executor
+from shelfsort.executor import Reporter, execute
+from shelfsort.plan import Op, PlanItem
 
 
 def _item(src: Path, dst: Path) -> PlanItem:

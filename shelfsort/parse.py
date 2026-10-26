@@ -35,7 +35,7 @@ class Parsed:
     season: int | None = None
     episodes: list[int] = field(default_factory=list)
     part: int | None = None
-    # other readings to try if `title` finds nothing ("dmpd-bluey" -> "bluey", folder "Bluey.S03E02…")
+    # other readings to try if `title` finds nothing ("abc-show" -> "show", folder "Show.S03E02…")
     alt_titles: list[str] = field(default_factory=list)
 
     def titles(self) -> list[str]:
@@ -130,8 +130,8 @@ def parse_release(path: Path) -> Parsed:
     if group and title and plain.startswith(f"{group}-{title}".lower()):
         alts.append(title)
         title = f"{group}-{title}"
-    # Fallbacks: obfuscated scene files put the group in front ("dmpd-bluey.s03e02…"),
-    # while the release folder usually carries the clean name ("Bluey.S03E02…-DMPD").
+    # Fallbacks: obfuscated scene files put the group in front ("abc-show.s03e02…"),
+    # while the release folder usually carries the clean name ("Show.S03E02…-ABC").
     # all lower case only, so "Spider-Man" never turns into "Man"
     if title == title.lower() and (m := re.match(r"^[a-z0-9]{2,8}-(.+)$", title)):
         alts.append(m.group(1))

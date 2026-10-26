@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFile
 from .audit import AuditOptions, build_audit_plan
 from .config import Config
 from .details import DetailsPanel
-from .dialogs import SettingsDialog
+from .dialogs import SettingsDialog, show_about
 from .match_dialog import MatchDialog
 from .executor import Reporter, TransferInfo, execute
 from .importer import build_import_plan
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.cfg = Config.load()
-        self.setWindowTitle("Plex Renamer")
+        self.setWindowTitle("ShelfSort")
         self.resize(1400, 820)
         self.tmdb: TMDB | None = None
         self._thread: QThread | None = None
@@ -179,6 +179,9 @@ class MainWindow(QMainWindow):
         settings = QAction("Einstellungen", self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
+        about = QAction("Über", self)
+        about.triggered.connect(lambda: show_about(self))
+        self.menuBar().addAction(about)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_import_tab(), "Import")
@@ -215,7 +218,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.progress)
         self.setAcceptDrops(True)
 
-        if not self.cfg.tmdb_key:
+        if not (self.cfg.tmdb_key and self.cfg.movies_root and self.cfg.tv_root):
             QTimer.singleShot(0, self.open_settings)
 
     # --- tabs ---
@@ -341,6 +344,8 @@ class MainWindow(QMainWindow):
         self.log_view.appendPlainText(text)
 
     def _services(self) -> tuple[TMDB, Library]:
+        if not self.cfg.movies_root or not self.cfg.tv_root:
+            raise RuntimeError("Bitte zuerst Filme- und Serien-Ordner in den Einstellungen festlegen.")
         self.tmdb = TMDB(self.cfg.tmdb_key, self.cfg.language)
         return self.tmdb, Library(Path(self.cfg.movies_root), Path(self.cfg.tv_root))
 
@@ -400,7 +405,7 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _on_transfer(self, info: TransferInfo) -> None:
         self.panel.update_transfer(info)
-        self.setWindowTitle(f"{self.panel.percent()} % – Plex Renamer")
+        self.setWindowTitle(f"{self.panel.percent()} % – ShelfSort")
 
     @Slot(object, str)
     def _on_item_state(self, it: PlanItem, state: str) -> None:
@@ -641,7 +646,7 @@ class MainWindow(QMainWindow):
         def done(_):
             self._run_table = None
             table.set_items(table.items)
-            self.setWindowTitle("Plex Renamer")
+            self.setWindowTitle("ShelfSort")
             self.log(self.panel.finish(cancel.is_set()))
             QApplication.alert(self)  # flash the taskbar button if the window is in the background
 
@@ -650,7 +655,7 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("Plex Renamer")
+    app.setApplicationName("ShelfSort")
     win = MainWindow()
     win.show()
     sys.exit(app.exec())

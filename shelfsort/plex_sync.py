@@ -84,6 +84,10 @@ class SpecialsReport:
         return max(good, key=lambda o: (len(o.in_flow), -len(o.missing))) if good else None
 
 
+class ProviderError(RuntimeError):
+    """Plex's metadata service failed. It is unofficial - callers fall back instead of failing."""
+
+
 def clean_title(t: str) -> str:
     """'Die Schneemänner (Christmas Special)' -> 'Die Schneemänner'."""
     return _PAREN.sub("", t or "").strip()
@@ -132,10 +136,13 @@ class PlexCatalog:
         # The provider pages at 20 items by default - seasons with 22 episodes would lose the last two.
         items: list[dict] = []
         while True:
-            r = self.s.get(f"{PROVIDER}/{path}", headers=headers, timeout=20,
-                           params={**params, "X-Plex-Container-Start": len(items), "X-Plex-Container-Size": 100})
-            r.raise_for_status()
-            mc = r.json().get("MediaContainer", {})
+            try:
+                r = self.s.get(f"{PROVIDER}/{path}", headers=headers, timeout=20,
+                               params={**params, "X-Plex-Container-Start": len(items), "X-Plex-Container-Size": 100})
+                r.raise_for_status()
+                mc = r.json().get("MediaContainer", {})
+            except (requests.RequestException, ValueError) as e:
+                raise ProviderError(f"Plex-Metadatendienst nicht erreichbar oder verändert ({e})") from e
             page = mc.get("Metadata", [])
             items += page
             if not page or len(items) >= int(mc.get("totalSize") or 0):
@@ -278,9 +285,12 @@ def specials_overview(catalog: PlexCatalog, tv_root: Path, progress=None) -> tup
             try:
                 if r := f.result():
                     reports.append(r)
+            except ProviderError as e:
+                if not any(isinstance(x, ProviderError) for x in errors):
+                    errors.append(e)  # one message if the service is down, not one per show
             except Exception as e:
                 errors.append(f"{show.title}: {e}")
-    return sorted(reports, key=lambda r: r.show.title.lower()), errors
+    return sorted(reports, key=lambda r: r.show.title.lower()), [str(e) for e in errors]
 
 
 class PlexEpisodeSource:

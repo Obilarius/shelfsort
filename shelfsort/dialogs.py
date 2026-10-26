@@ -1,7 +1,9 @@
-"""Settings dialog."""
+"""Settings and about dialogs."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
                                QWidget)
@@ -100,3 +102,31 @@ class SettingsDialog(QDialog):
         c.min_video_mb = self.min_mb.value()
         c.save()
         self.accept()
+
+
+ASSETS = Path(__file__).parent / "assets"
+
+ABOUT_HTML = """
+<h2>ShelfSort {version}</h2>
+<p>Benennt Filme und Serien so, wie Plex sie erwartet, verschiebt sie in die Bibliothek und
+prüft Folgennummern gegen die in Plex eingestellte Reihenfolge.</p>
+<p>Freie Software unter der MIT-Lizenz. Verwendete Bibliotheken und ihre Lizenzen:
+siehe <i>THIRD_PARTY_LICENSES.md</i>.</p>
+<hr>
+<p><a href="https://www.themoviedb.org"><img src="{tmdb_logo}" width="110"></a><br>
+This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</p>
+<p><b>Plex</b> – ShelfSort ist kein Produkt von Plex, Inc. und wird von Plex weder unterstützt noch
+gesponsert. „Plex“ ist eine Marke von Plex, Inc.</p>
+"""
+
+
+def show_about(parent=None) -> None:
+    from . import __version__
+    box = QMessageBox(parent)
+    box.setWindowTitle("Über ShelfSort")
+    box.setTextFormat(Qt.RichText)
+    box.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    # TMDB requires its logo next to the notice (smaller than our own branding)
+    logo = QUrl.fromLocalFile(str(ASSETS / "tmdb.svg")).toString()
+    box.setText(ABOUT_HTML.format(version=__version__, tmdb_logo=logo))
+    box.exec()

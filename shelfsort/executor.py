@@ -159,7 +159,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
     for o in pending:
         src = fix(o.src)
         if str(src).lower() in targets and str(src).lower() != str(fix(o.dst)).lower():
-            tmp = src.with_name(src.name + ".plexrenamer-tmp")
+            tmp = src.with_name(src.name + ".shelfsort-tmp")
             os.rename(src, tmp)
             parked[id(o)] = (src, tmp)
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from plex_renamer.plex import Plex
+from shelfsort.plex import Plex
 
 
 def test_refresh_maps_local_folder_to_server_path(monkeypatch):

@@ -4,12 +4,15 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 1. Rechtliches & Außendarstellung
 
-- [ ] **Neuer Name ohne „Plex“** – Markenrichtlinien von Plex. „… für Plex“ in der Beschreibung ist ok, im Produktnamen nicht.
-- [ ] **Lizenz wählen** und `LICENSE` anlegen (z. B. MIT oder GPL-3.0). PySide6 und guessit sind LGPL – passt zu beidem, Lizenztexte der Abhängigkeiten in der Exe mitliefern (`THIRD_PARTY_LICENSES`).
-- [ ] **TMDB-Hinweis** in App (Über-Dialog) und README, mit TMDB-Logo: „This product uses the TMDB API but is not endorsed or certified by TMDB.“ Nicht-kommerziell ist die Nutzung kostenlos; Spenden-Link vorher kurz mit den TMDB-Bedingungen abgleichen.
-- [ ] **Jeder Nutzer trägt seinen eigenen TMDB-Key ein** (so wie jetzt) – keinen eigenen Key in die Exe packen.
-- [ ] **Plex-Metadatendienst ist inoffiziell** (`metadata.provider.plex.tv`): in README erwähnen; wenn er ausfällt, sauber auf TMDB zurückfallen und das im Log/UI anzeigen statt Fehler.
-- [ ] **Neutrale Beispiele** in README und Screenshots – keine Scene-Release-Namen.
+- [x] **Neuer Name ohne „Plex“** – ShelfSort. Paket `shelfsort`, Start über `ShelfSort.bat`, Einstellungen in `%APPDATA%\ShelfSort` (alte werden übernommen).
+- [x] **Lizenz** – MIT (`LICENSE`), Abhängigkeiten in `THIRD_PARTY_LICENSES.md`.
+- [ ] **Volle Lizenztexte der Abhängigkeiten** in die Exe packen (`licenses/`-Ordner) – beim Exe-Build (Abschnitt 3).
+- [x] **TMDB-Hinweis** im Über-Dialog und in der README.
+- [x] **TMDB-Logo** („Alt short“) im Über-Dialog, Hinweis im offiziellen Wortlaut. Liegt in `shelfsort/assets/` – beim Exe-Build mitnehmen.
+- [x] **Spenden-Link** mit den TMDB-Bedingungen abgeglichen: freiwillige Spenden für ein kostenloses Open-Source-Tool sind kein Hauptzweck „Einnahmen“ → ok. Dabei bleiben: keine Funktionen hinter Spenden, keine Werbung.
+- [x] **Jeder Nutzer trägt seinen eigenen TMDB-Key ein** – kein Key im Code; Standardwerte (Server, Ordner) sind jetzt neutral.
+- [x] **Plex-Metadatendienst ist inoffiziell**: in README erklärt; fällt er aus, kommen Folgentitel von TMDB, Plex-Abgleich und Specials-Check melden das einmal statt pro Serie.
+- [x] **Neutrale Beispiele** in README, Code-Kommentaren und Tests. Screenshots folgen mit der README für Fremde (Abschnitt 7).
 
 ## 2. Einrichtung ohne Bastelei
 

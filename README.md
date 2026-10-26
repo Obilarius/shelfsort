@@ -1,19 +1,21 @@
-# Plex Renamer
+# ShelfSort
 
-Kleine GUI, die Downloads Plex-gerecht benennt und in die Bibliothek verschiebt – und die bestehende Bibliothek auf falsche Namen, falsche Folgennummern und leere Ordner prüft.
+Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet, sie in die Bibliothek verschiebt – und die bestehende Bibliothek auf falsche Namen, falsche Folgennummern und leere Ordner prüft.
+
+> ShelfSort ist ein unabhängiges Projekt und kein Produkt von Plex, Inc. „Plex“ ist eine Marke von Plex, Inc.
 
 ## Start
 
-`Plex Renamer.bat` doppelklicken. Beim ersten Start öffnen sich die Einstellungen:
+`ShelfSort.bat` doppelklicken. Beim ersten Start öffnen sich die Einstellungen:
 
 | Einstellung | Wofür |
 |---|---|
 | TMDB API-Key / Token | Titel, Jahr, ID, Cover (themoviedb.org → Einstellungen → API) |
 | Plex-URL, Plex-Token | Scan nach dem Übertragen, Plex-Abgleich, Folgentitel in Plex-Reihenfolge. Ohne Token läuft alles außer diesen Funktionen. |
-| Filme-/Serien-Ordner | Bibliothek, z. B. `X:\plex_media\movies` und `X:\plex_media\tvshows` |
+| Filme-/Serien-Ordner | Bibliothek, z. B. `D:\Medien\Filme` und `D:\Medien\Serien` |
 | Videos ignorieren unter | Mindestgröße, filtert Samples und Reste |
 
-„Verbindung testen“ prüft TMDB und Plex. Die Einstellungen liegen in `%APPDATA%\plex-renamer\config.json`, nicht im Repo.
+„Verbindung testen“ prüft TMDB und Plex. Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
 
 Einrichtung auf einem neuen Rechner:
 
@@ -31,13 +33,13 @@ py -3.12 -m venv .venv
 
 - Bestehende Serienordner (per TMDB-ID erkannt) und Staffelordner (`Season 05` / `Staffel 13`) werden weiterverwendet.
 - Die Folgennummer kommt aus dem Dateinamen, der Folgentitel aus Plex: bei Serien in der Bibliothek in der dort eingestellten Reihenfolge (z. B. Doctor Who „TheTVDB (BBC iPlayer)“), bei neuen Serien in der Standard-Reihenfolge der Bibliothek – also so, wie Plex sie nach dem Import nummeriert. TMDB zählt manchmal anders (Bluey S03E49 ist dort ein Special). Nur ohne Plex-Token oder wenn Plex die Serie nicht kennt, kommt der Titel von TMDB.
-- Verschleierte Scene-Dateien (`dmpd-bluey.s03e02…`) werden über den Ordnernamen bzw. ohne Gruppen-Kürzel erkannt.
+- Dateien mit Kürzel vor dem Titel (`abc-show.s03e02…`) werden über den Ordnernamen bzw. ohne Kürzel erkannt.
 - Untertitel (`Film.de.forced.srt`) wandern mit.
 - Für Windows verbotene Zeichen werden ersetzt: `F1: Der Film` → `F1 - Der Film`.
 
 ## Import
 
-Ordner wählen oder ins Fenster ziehen → alle Unterordner werden gescannt. Film oder Serie wird am Dateinamen erkannt, nicht am Ordner; Release-Namen wie `Pressure.2026.German.DL.2160p…-LiNEUP - by …` sind kein Problem.
+Ordner wählen oder ins Fenster ziehen → alle Unterordner werden gescannt. Film oder Serie wird am Dateinamen erkannt, nicht am Ordner; auch technische Dateinamen wie `Some.Movie.2016.German.DL.1080p.BluRay.x264.mkv` werden zerlegt.
 
 - **Grün (Bereit):** sicherer Treffer, vorausgewählt.
 - **Gelb (Prüfen):** unsicherer Treffer, ähnlicher Ordner oder Film schon vorhanden, Folge in Plex-Reihenfolge unbekannt – nicht vorausgewählt.
@@ -82,6 +84,12 @@ Angehakte Serien → „Reihenfolge in Plex umstellen“: stellt die Reihenfolge
 | `executor.py` | Ausführen: Umbenennen, Kopieren, Löschen, Aufräumen |
 | `parse.py`, `naming.py`, `matcher.py` | Release-Namen zerlegen, Namensschema, TMDB-Treffer bewerten |
 | `tmdb.py`, `plex.py`, `plex_sync.py`, `posters.py` | TMDB, Plex-Scan, Plex-Folgenlisten und Reihenfolgen, Bilder |
+
+## Datenquellen & Lizenz
+
+- **TMDB:** This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB. Jeder Nutzer trägt seinen eigenen, kostenlosen TMDB-API-Key ein.
+- **Plex:** ShelfSort spricht mit deinem eigenen Plex Media Server. Für den Plex-Abgleich, den Specials-Check und Folgentitel in Plex-Reihenfolge nutzt es zusätzlich Plex' Metadatendienst (`metadata.provider.plex.tv`). Dieser Dienst ist **nicht offiziell dokumentiert** und kann sich jederzeit ändern. Fällt er aus, kommen Folgentitel von TMDB und der Plex-Abgleich wird mit einem Hinweis übersprungen – Import und Namensprüfung laufen weiter.
+- **Lizenz:** MIT, siehe `LICENSE`. Verwendete Bibliotheken und ihre Lizenzen: `THIRD_PARTY_LICENSES.md`.
 
 ## Tests
 
