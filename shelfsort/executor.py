@@ -62,7 +62,17 @@ def _check_free(src: Path, dst: Path) -> None:
 
 
 def crosses_drive(src: Path, dst: Path) -> bool:
-    return os.path.splitdrive(str(src))[0].lower() != os.path.splitdrive(str(dst))[0].lower()
+    """True if a move needs copy + delete instead of a rename (different drive / file system)."""
+    if os.name == "nt":
+        return os.path.splitdrive(str(src))[0].lower() != os.path.splitdrive(str(dst))[0].lower()
+    # Linux/macOS have no drive letters: compare the file systems (dst may not exist yet)
+    existing = dst
+    while not existing.exists() and existing.parent != existing:
+        existing = existing.parent
+    try:
+        return os.stat(src).st_dev != os.stat(existing).st_dev
+    except OSError:
+        return True  # unsure -> copy, which always works
 
 
 def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None = None,

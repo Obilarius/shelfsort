@@ -6,7 +6,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 - [x] **Neuer Name ohne „Plex“** – ShelfSort. Paket `shelfsort`, Start über `ShelfSort.bat`, Einstellungen in `%APPDATA%\ShelfSort` (alte werden übernommen).
 - [x] **Lizenz** – MIT (`LICENSE`), Abhängigkeiten in `THIRD_PARTY_LICENSES.md`.
-- [ ] **Volle Lizenztexte der Abhängigkeiten** in die Exe packen (`licenses/`-Ordner) – beim Exe-Build (Abschnitt 3).
+- [x] **Volle Lizenztexte der Abhängigkeiten** im `licenses/`-Ordner der App (inkl. LGPL-3.0 und Qt-Hinweis).
+- [x] **GPL-3.0-Text** liegt in `licenses/GPL-3.0.txt` (LGPL-3.0 verlangt ihn dazu).
 - [x] **TMDB-Hinweis** im Über-Dialog und in der README.
 - [x] **TMDB-Logo** („Alt short“) im Über-Dialog, Hinweis im offiziellen Wortlaut. Liegt in `shelfsort/assets/` – beim Exe-Build mitnehmen.
 - [x] **Spenden-Link** mit den TMDB-Bedingungen abgeglichen: freiwillige Spenden für ein kostenloses Open-Source-Tool sind kein Hauptzweck „Einnahmen“ → ok. Dabei bleiben: keine Funktionen hinter Spenden, keine Werbung.
@@ -27,12 +28,14 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 3. Installation & Updates
 
-- [ ] **Exe bauen** (PyInstaller oder Nuitka), Icon, Versionsnummer.
+- [x] **Exe bauen** – `tools/build.py` (PyInstaller, Ordner-Build), Icon, Versionsinfo, Selbsttest, ZIP; ~38 MB gezippt.
 - [ ] **GitHub Actions**: Tests bei jedem Push, Exe-Build bei Release-Tag.
 - [ ] **GitHub Releases** mit Exe/Zip und Changelog.
 - [ ] **Update-Hinweis** in der App (neueste Release-Version über die GitHub-API prüfen).
 - [ ] *Optional:* Code-Signatur gegen die SmartScreen-Warnung – kostet Geld; bis dahin in der README erklären („Weitere Informationen → Trotzdem ausführen“).
-- [ ] *Optional:* macOS/Linux – „anderes Laufwerk?“ beim Verschieben über das Dateisystem (`st_dev`) statt Laufwerksbuchstaben erkennen, Startskripte.
+- [x] Linux/macOS im Code: Einstellungsordner (`~/.config`), „anderes Laufwerk?“ über das Dateisystem, Pfad-Suche in `/mnt`, `/media`, `/Volumes`.
+- [ ] Linux-Build in GitHub Actions (älteres Ubuntu für breite Kompatibilität) und einmal auf einem Linux-Desktop testen.
+- [ ] *Optional/später:* macOS-Build (ohne Apple-Entwicklerkonto nur unsigniert, Nutzer müssen die App manuell freigeben).
 
 ## 4. Flexibilität
 

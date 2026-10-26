@@ -94,6 +94,15 @@ Angehakte Serien → „Reihenfolge in Plex umstellen“: stellt die Reihenfolge
 - **Plex:** ShelfSort spricht mit deinem eigenen Plex Media Server. Für den Plex-Abgleich, den Specials-Check und Folgentitel in Plex-Reihenfolge nutzt es zusätzlich Plex' Metadatendienst (`metadata.provider.plex.tv`). Dieser Dienst ist **nicht offiziell dokumentiert** und kann sich jederzeit ändern. Fällt er aus, kommen Folgentitel von TMDB und der Plex-Abgleich wird mit einem Hinweis übersprungen – Import und Namensprüfung laufen weiter.
 - **Lizenz:** MIT, siehe `LICENSE`. Verwendete Bibliotheken und ihre Lizenzen: `THIRD_PARTY_LICENSES.md`.
 
+## Programm bauen
+
+```
+.venv\Scripts\pip install pyinstaller
+.venv\Scripts\python tools\build.py
+```
+
+Ergebnis: `dist\ShelfSort\` (Ordner mit `ShelfSort.exe`) und `dist\ShelfSort-<Version>-windows-x64.zip`. Das Skript prüft die gebaute App mit `ShelfSort.exe --selftest` und legt die Lizenztexte aller Bibliotheken nach `licenses\`. Unter Linux/macOS funktioniert es genauso und baut die Version für das jeweilige System. Das Icon entsteht mit `tools\make_icon.py`.
+
 ## Tests
 
 ```

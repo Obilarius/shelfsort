@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QBrush, QColor
+from PySide6.QtGui import QAction, QBrush, QColor, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
@@ -735,8 +735,13 @@ class MainWindow(QMainWindow):
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        # own taskbar identity, so Windows shows ShelfSort's icon instead of Python's
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ShelfSort.App")
     app = QApplication(sys.argv)
     app.setApplicationName("ShelfSort")
+    app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "icon.png")))
     win = MainWindow()
     win.show()
     sys.exit(app.exec())

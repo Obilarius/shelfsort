@@ -44,9 +44,19 @@ def verify(local_root: Path, server_root: str, samples: list[str]) -> MappingGue
 
 
 def _drives() -> list[Path]:
-    if os.name != "nt":
-        return [Path("/")]
-    return [Path(f"{d}:\\") for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    """Places where library folders can live: drive letters on Windows, mount points elsewhere."""
+    if os.name == "nt":
+        return [Path(f"{d}:\\") for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    roots = [Path("/"), Path.home()]
+    for base in (Path("/mnt"), Path("/media"), Path("/Volumes"), Path("/run/media")):
+        try:
+            for sub in base.iterdir():  # /mnt/nas, /media/user, /Volumes/Media
+                if sub.is_dir():
+                    roots.append(sub)
+                    roots += [d for d in sub.iterdir() if d.is_dir()]  # /media/user/NAS
+        except OSError:
+            pass
+    return roots
 
 
 def candidates(server_root: str) -> list[Path]:

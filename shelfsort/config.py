@@ -4,13 +4,20 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import uuid
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from .plex import LibraryMap
 
-_APPDATA = Path(os.environ.get("APPDATA", Path.home()))
+# Windows: %APPDATA%, Linux: $XDG_CONFIG_HOME or ~/.config, macOS: ~/Library/Application Support
+if os.name == "nt":
+    _APPDATA = Path(os.environ.get("APPDATA", Path.home()))
+elif sys.platform == "darwin":
+    _APPDATA = Path.home() / "Library" / "Application Support"
+else:
+    _APPDATA = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
 CONFIG_PATH = _APPDATA / "ShelfSort" / "config.json"
 _OLD_CONFIG_PATH = _APPDATA / "plex-renamer" / "config.json"  # before the rename to ShelfSort
 
