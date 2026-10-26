@@ -56,13 +56,13 @@ class SettingsDialog(QDialog):
         libs = "<br>".join(f"<b>{lib.title}</b> ({KINDS[lib.kind]}{', Standard' if lib.default else ''}, "
                            f"Titel: {language_name(lib.language or cfg.language)}): {lib.local_root}"
                            for lib in cfg.libs) or "keine"
-        libs_label = QLabel(libs + "<br><i>Ändern über „Einrichten …“ im Menü.</i>")
+        libs_label = QLabel(libs + "<br><i>Ändern über „Einrichten“ im Menü.</i>")
         libs_label.setTextFormat(Qt.RichText)
         libs_label.setWordWrap(True)
         form.addRow("Bibliotheken", libs_label)
         form.addRow("Videos ignorieren unter", self.min_mb)
         hint = QLabel('TMDB-Key: themoviedb.org → Einstellungen → API. Plex-Anmeldung, Server und '
-                      'Bibliotheken richtet „Einrichten …“ im Menü ein; URL und Token hier nur bei Bedarf von Hand.')
+                      'Bibliotheken richtet „Einrichten“ im Menü ein; URL und Token hier nur bei Bedarf von Hand.')
         hint.setWordWrap(True)
         hint.setTextFormat(Qt.RichText)
 

@@ -612,7 +612,7 @@ class DonePage(QWizardPage):
         lay.addWidget(self.lang_hint)
         lay.addWidget(self.lang_fix, 0, Qt.AlignLeft)
         lay.addStretch()
-        lay.addWidget(_label("Alles lässt sich später über <i>Einrichten …</i> im Menü ändern.", GRAY))
+        lay.addWidget(_label("Alles lässt sich später über <i>Einrichten</i> im Menü ändern.", GRAY))
 
     @staticmethod
     def _section(title: str, body: str) -> str:

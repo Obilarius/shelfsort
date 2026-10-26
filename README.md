@@ -6,7 +6,7 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 
 ## Start
 
-`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten …** im Menü):
+`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten** im Menü):
 
 1. **Sprache** – App-Sprache (bisher Deutsch) und Standard-Sprache der Titel.
 2. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).

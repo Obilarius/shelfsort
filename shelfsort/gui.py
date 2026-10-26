@@ -177,12 +177,12 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self.import_root: Path | None = None
 
+        setup = QAction("Einrichten", self)
+        setup.triggered.connect(self.open_wizard)
+        self.menuBar().addAction(setup)
         settings = QAction("Einstellungen", self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
-        setup = QAction("Einrichten …", self)
-        setup.triggered.connect(self.open_wizard)
-        self.menuBar().addAction(setup)
         about = QAction("Über", self)
         about.triggered.connect(lambda: show_about(self))
         self.menuBar().addAction(about)
