@@ -6,7 +6,7 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 
 ## Start
 
-`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten** im Menü):
+`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einstellungen → Allgemein → Einrichtungsassistent starten**):
 
 1. **Sprache** – App-Sprache (bisher Deutsch) und Standard-Sprache der Titel.
 2. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
@@ -14,7 +14,16 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 4. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
 5. **Bibliotheken wählen** – alle Film- und Serien-Bibliotheken aus Plex anhaken, die ShelfSort verwalten soll (z. B. „Filme“, „Disney“, „Serien“). ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien. Pro Typ ist eine Bibliothek **Standard** für neue Importe – bei einer Neueinrichtung die größte. Jede Bibliothek hat ihre eigene **Titelsprache**, vorbelegt mit ihrer Sprache in Plex (z. B. Englisch für eine OV-Bibliothek); weicht sie von Plex ab, warnt die Übersicht am Ende. Bibliotheken für eigene Videos („Andere Videos“) sind standardmäßig nicht angehakt.
 
-Unter **Einstellungen** lässt sich alles auch von Hand ändern (z. B. Mindestgröße für Videos, Sprache der Metadaten). Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
+Unter **Einstellungen** lässt sich danach jede Sache direkt ändern, ohne den Assistenten:
+
+| Reiter | Inhalt |
+|---|---|
+| Allgemein | App-Sprache, Sprache der Titel, Mindestgröße für Videos, Assistent erneut starten |
+| Plex | Anmelden/Abmelden, Server wählen oder Adresse von Hand; unter „Erweitert“ URL und Token direkt |
+| Bibliotheken | dieselbe Liste wie im Assistenten (verwalten, Ordner, Titelsprache, Standard) |
+| TMDB | API-Key mit Prüfung |
+
+Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json` (Linux: `~/.config/ShelfSort`), nicht im Repo.
 
 Einrichtung auf einem neuen Rechner:
 

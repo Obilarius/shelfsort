@@ -44,7 +44,7 @@ def system_language() -> str:
     return "de" if QLocale.system().language() == QLocale.German else "en"
 
 
-def tr(text: str, **values) -> str:
+def tr(text: str, /, **values) -> str:  # "/": a placeholder may be called {text} too
     out = _catalog.get(text, text) if _catalog else text
     return out.format(**values) if values else out
 

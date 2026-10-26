@@ -4,118 +4,174 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMessageBox,
+                               QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
-from .config import KINDS, METADATA_LANGUAGES, Config, language_name
+from . import i18n
+from .config import Config
 from .i18n import N_, tr
-from .plex import Plex
-from .tmdb import TMDB
+from .setup_widgets import (GRAY, LanguageFields, LibrariesWidget, PlexLoginWidget, ServerWidget, TmdbKeyWidget,
+                            label)
+
+ASSETS = Path(__file__).parent / "assets"
 
 
-def _path_row(edit: QLineEdit, parent: QWidget) -> QWidget:
+def _tab(*widgets, stretch: bool = True) -> QWidget:
     w = QWidget()
-    lay = QHBoxLayout(w)
-    lay.setContentsMargins(0, 0, 0, 0)
-    btn = QPushButton("…")
-    btn.setFixedWidth(32)
-    btn.clicked.connect(lambda: (d := QFileDialog.getExistingDirectory(parent, tr("Ordner wählen"), edit.text()))
-                        and edit.setText(d.replace("/", "\\")))
-    lay.addWidget(edit)
-    lay.addWidget(btn)
+    lay = QVBoxLayout(w)
+    for x in widgets:
+        if isinstance(x, QLayout):
+            lay.addLayout(x)
+        else:
+            lay.addWidget(x)
+    if stretch:
+        lay.addStretch()
     return w
 
 
 class SettingsDialog(QDialog):
+    """Everything can be changed here directly; the setup wizard uses the same building blocks."""
+
+    TAB_GENERAL, TAB_PLEX, TAB_LIBRARIES, TAB_TMDB = range(4)
+
     def __init__(self, cfg: Config, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("Einstellungen"))
-        self.setMinimumWidth(560)
+        self.resize(900, 600)
         self.cfg = cfg
-        self.tmdb_key = QLineEdit(cfg.tmdb_key)
-        self.tmdb_key.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-        self.language = QComboBox()
-        for code, name in METADATA_LANGUAGES:
-            self.language.addItem(f"{tr(name)}  ({code})", code)
-        if self.language.findData(cfg.language) < 0:
-            self.language.addItem(cfg.language, cfg.language)
-        self.language.setCurrentIndex(self.language.findData(cfg.language))
-        self.plex_url = QLineEdit(cfg.plex_url)
-        self.plex_token = QLineEdit(cfg.plex_token)
-        self.plex_token.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+        self.start_wizard = False  # set when the user asks for the setup wizard instead
+        self.language_changed = False
+
+        # general
+        self.languages = LanguageFields(cfg)
         self.min_mb = QSpinBox()
         self.min_mb.setRange(0, 10000)
         self.min_mb.setSuffix(" MB")
         self.min_mb.setValue(cfg.min_video_mb)
+        size_form = QFormLayout()
+        size_form.addRow(tr("Videos ignorieren unter"), self.min_mb)
+        wizard_btn = QPushButton(tr("Einrichtungsassistent starten"))
+        wizard_btn.clicked.connect(self._open_wizard)
+        general = _tab(self.languages,
+                       label(tr("Die Sprache der Titel gilt für Bibliotheken ohne eigene Sprache; jede Bibliothek "
+                                "lässt sich unter <i>Bibliotheken</i> einzeln umstellen."), GRAY),
+                       size_form,
+                       label(tr("Videos unter dieser Größe (z. B. Samples) übersieht der Import."), GRAY))
+        general.layout().addWidget(label(tr("Alles noch einmal Schritt für Schritt einrichten:"), GRAY))
+        general.layout().addWidget(wizard_btn, 0, Qt.AlignLeft)
 
-        form = QFormLayout()
-        form.addRow(tr("TMDB API-Key / Token"), self.tmdb_key)
-        form.addRow(tr("Standard-Sprache der Titel"), self.language)
-        form.addRow(tr("Plex-URL"), self.plex_url)
-        form.addRow(tr("Plex-Token"), self.plex_token)
-        libs = "<br>".join(
-            (tr("<b>{title}</b> ({kind}, Standard, Titel: {language}): {folder}", title=lib.title,
-                kind=tr(KINDS[lib.kind]), language=language_name(lib.language or cfg.language),
-                folder=lib.local_root) if lib.default
-             else tr("<b>{title}</b> ({kind}, Titel: {language}): {folder}", title=lib.title,
-                     kind=tr(KINDS[lib.kind]), language=language_name(lib.language or cfg.language),
-                     folder=lib.local_root))
-            for lib in cfg.libs) or tr("keine")
-        libs_label = QLabel(libs + "<br>" + tr("<i>Ändern über „Einrichten“ im Menü.</i>"))
-        libs_label.setTextFormat(Qt.RichText)
-        libs_label.setWordWrap(True)
-        form.addRow(tr("Bibliotheken"), libs_label)
-        form.addRow(tr("Videos ignorieren unter"), self.min_mb)
-        hint = QLabel(tr("TMDB-Key: themoviedb.org → Einstellungen → API. Plex-Anmeldung, Server und "
-                         "Bibliotheken richtet „Einrichten“ im Menü ein; URL und Token hier nur bei Bedarf von Hand."))
-        hint.setWordWrap(True)
-        hint.setTextFormat(Qt.RichText)
+        # Plex
+        self.login = PlexLoginWidget(cfg, allow_logout=True)
+        self.servers = ServerWidget(cfg)
+        self.login.token_changed.connect(self.servers.load)
+        self.servers.changed.connect(self._server_changed)
+        self.manual = QGroupBox(tr("Erweitert: Server-Adresse und Token von Hand"))
+        self.manual.setCheckable(True)
+        self.manual.setChecked(False)
+        self.manual_url = QLineEdit(cfg.plex_url)
+        self.manual_token = QLineEdit(cfg.plex_token)
+        self.manual_token.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+        mform = QFormLayout(self.manual)
+        mform.addRow(tr("Plex-URL"), self.manual_url)
+        mform.addRow(tr("Plex-Token"), self.manual_token)
+        plex = _tab(self.login, label(tr("Server"), "font-weight: bold; margin-top: 10px"), self.servers,
+                    self.manual)
 
-        test = QPushButton(tr("Verbindung testen"))
-        test.clicked.connect(self._test)
+        # libraries (loaded when the tab is opened - needs the server)
+        self.libraries = LibrariesWidget(cfg)
+        self.libs_touched = False
+        libraries = _tab(self.libraries, stretch=False)
+
+        # TMDB
+        self.tmdb = TmdbKeyWidget(cfg)
+        test = QPushButton(tr("Key prüfen"))
+        test.clicked.connect(self.tmdb.validate)
+        logo = QUrl.fromLocalFile(str(ASSETS / "tmdb.svg")).toString()
+        tmdb = _tab(self.tmdb)
+        tmdb.layout().insertWidget(1, test, 0, Qt.AlignLeft)
+        tmdb.layout().addWidget(label(f'<img src="{logo}" width="90"><br>This product uses TMDB and the TMDB APIs '
+                                      f'but is not endorsed, certified, or otherwise approved by TMDB.', GRAY))
+
+        self.tabs = QTabWidget()
+        for widget, title in ((general, N_("Allgemein")), (plex, "Plex"), (libraries, N_("Bibliotheken")),
+                              (tmdb, "TMDB")):
+            self.tabs.addTab(widget, tr(title))
+        self.tabs.currentChanged.connect(self._tab_changed)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Save).setText(tr("Speichern"))
+        buttons.button(QDialogButtonBox.Cancel).setText(tr("Abbrechen"))
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
-        bottom = QHBoxLayout()
-        bottom.addWidget(test)
-        bottom.addStretch()
-        bottom.addWidget(buttons)
-
         lay = QVBoxLayout(self)
-        lay.addLayout(form)
-        lay.addWidget(hint)
-        lay.addLayout(bottom)
+        lay.addWidget(self.tabs, 1)
+        lay.addWidget(buttons)
 
-    def _test(self) -> None:
-        lines = []
-        try:
-            r = TMDB(self.tmdb_key.text().strip(), self.language.currentData()).search_movie("Matrix")
-            lines.append(tr("TMDB: OK ({n} Treffer für „Matrix“)", n=len(r)))
-        except Exception as e:
-            lines.append(f"TMDB: {e}")
-        if self.plex_token.text().strip():
-            try:
-                secs = Plex(self.plex_url.text().strip(), self.plex_token.text().strip()).sections()
-                lines.append("Plex: OK – " + ", ".join(f"{s['title']} ({'; '.join(s['locations'])})" for s in secs))
-            except Exception as e:
-                lines.append(f"Plex: {e}")
+        if self.login.token:
+            self.servers.load(self.login.token)
         else:
-            lines.append(tr("Plex: kein Token – Scan nach dem Übertragen wird übersprungen"))
-        QMessageBox.information(self, tr("Verbindungstest"), "\n\n".join(lines))
+            self.servers.load("")
+
+    # --- libraries follow the chosen server ---
+
+    def _wanted_plex(self):
+        if self.manual.isChecked() and self.manual_url.text().strip() and self.manual_token.text().strip():
+            from .plex import Plex
+            return Plex(self.manual_url.text().strip(), self.manual_token.text().strip())
+        return self.servers.plex()
+
+    def _load_libraries(self) -> None:
+        plex = self._wanted_plex()
+        if self.login.token and not plex and not self.manual.isChecked():
+            self.libraries.info.setText(tr("Warte auf den Plex-Server …"))
+            return  # _server_changed loads once the server answers
+        key = (plex.url, plex.token) if plex else None
+        if self.libs_touched and key == self.libraries.loaded_for:
+            return
+        self.libs_touched = True
+        self.libraries.load(plex, self.languages.metadata_language)
+
+    def _tab_changed(self, index: int) -> None:
+        if index == self.TAB_LIBRARIES:
+            self._load_libraries()
+
+    def _server_changed(self) -> None:
+        if self.tabs.currentIndex() == self.TAB_LIBRARIES and self.servers.url:
+            self._load_libraries()
+
+    # --- actions ---
+
+    def _open_wizard(self) -> None:
+        self.start_wizard = True
+        self.reject()  # nothing is saved; the main window opens the wizard
 
     def _save(self) -> None:
+        if self.libs_touched and not self.libraries.is_complete():
+            self.tabs.setCurrentIndex(self.TAB_LIBRARIES)
+            QMessageBox.warning(self, tr("Einstellungen"),
+                                tr("Bitte mindestens eine Film- und eine Serien-Bibliothek mit gültigem Ordner wählen."))
+            return
         c = self.cfg
-        c.tmdb_key = self.tmdb_key.text().strip()
-        c.language = self.language.currentData() or "de-DE"
-        c.plex_url = self.plex_url.text().strip()
-        c.plex_token = self.plex_token.text().strip()
+        self.language_changed = self.languages.app_language != i18n.language()
+        c.app_language = self.languages.app_language
+        c.language = self.languages.metadata_language
         c.min_video_mb = self.min_mb.value()
+        c.tmdb_key = self.tmdb.key
+        if self.manual.isChecked():
+            c.plex_url = self.manual_url.text().strip()
+            c.plex_token = self.manual_token.text().strip()
+        elif not self.login.token:
+            c.plex_token = c.plex_server_name = ""
+        elif self.servers.server() and self.servers.url:
+            s = self.servers.server()
+            c.plex_token, c.plex_url, c.plex_server_name = s.access_token, self.servers.url, s.name
+        else:
+            c.plex_token = self.login.token  # server not reachable right now: keep the known address
+        if self.libs_touched:
+            c.set_libs(self.libraries.chosen())
         c.save()
         self.accept()
 
-
-ASSETS = Path(__file__).parent / "assets"
 
 ABOUT_HTML = N_("""
 <h2>ShelfSort {version}</h2>

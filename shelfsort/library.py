@@ -40,7 +40,7 @@ class Library:
     def from_config(cls, cfg) -> "Library":
         movie, show = cfg.default_lib("movie"), cfg.default_lib("show")
         if not movie or not show:
-            raise RuntimeError(tr("Bitte zuerst eine Filme- und eine Serien-Bibliothek einrichten (Menü „Einrichten“)."))
+            raise RuntimeError(tr("Bitte zuerst eine Filme- und eine Serien-Bibliothek einrichten (Einstellungen → Bibliotheken)."))
         return cls(movie.path, show.path, [lib.path for lib in cfg.libs_of("movie")],
                    [lib.path for lib in cfg.libs_of("show")],
                    {str(lib.path).lower(): lib.title for lib in cfg.libs},

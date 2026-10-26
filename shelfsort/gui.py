@@ -179,9 +179,7 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self.import_root: Path | None = None
 
-        setup = QAction(tr("Einrichten"), self)
-        setup.triggered.connect(self.open_wizard)
-        self.menuBar().addAction(setup)
+        # the setup wizard opens on first start and from the settings ("Einrichtungsassistent starten")
         settings = QAction(tr("Einstellungen"), self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
@@ -480,7 +478,15 @@ class MainWindow(QMainWindow):
     # --- actions ---
 
     def open_settings(self) -> None:
-        SettingsDialog(self.cfg, self).exec()
+        dialog = SettingsDialog(self.cfg, self)
+        saved = dialog.exec()
+        if dialog.start_wizard:
+            self.open_wizard()
+        elif saved and dialog.language_changed:
+            self._switch_language(self.cfg.app_language).log(tr("Einstellungen gespeichert."))
+        elif saved:
+            self._fill_library_checks()
+            self.log(tr("Einstellungen gespeichert."))
 
     def open_wizard(self, start_meta: str | None = None) -> None:
         wizard = SetupWizard(self.cfg, self, start_meta)

@@ -44,6 +44,7 @@ def test_tr_and_fallback():
         assert i18n.set_language("en") == "en"
         assert i18n.tr("Abbrechen") == "Cancel"
         assert i18n.tr("gibt es nicht {x}", x=1) == "gibt es nicht 1"  # unknown -> German
+        assert i18n.tr("{text} {name}", text="a", name="b") == "a b"  # placeholder named like the parameter
         assert i18n.set_language("xx") == "de" and i18n.tr("Abbrechen") == "Abbrechen"
     finally:
         i18n.set_language("de")
