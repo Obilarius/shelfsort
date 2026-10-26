@@ -25,7 +25,19 @@ class TMDB:
             self.s.headers["Authorization"] = f"Bearer {api_key}"
             self.key = None
         self.language = language
-        self._cache: dict = {}
+        self._cache: dict = {}  # keyed by path + params incl. language, so it can be shared
+        self._api_key = api_key
+        self._siblings: dict[str, "TMDB"] = {language: self}
+
+    def for_language(self, language: str | None) -> "TMDB":
+        """Same client in another language (e.g. for an OV library); shares session and cache."""
+        if not language or language == self.language:
+            return self
+        if language not in self._siblings:
+            other = TMDB(self._api_key, language, self.s)
+            other._cache, other._siblings = self._cache, self._siblings
+            self._siblings[language] = other
+        return self._siblings[language]
 
     def get(self, path: str, **params):
         params = {k: v for k, v in params.items() if v is not None}

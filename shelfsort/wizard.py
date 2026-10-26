@@ -105,15 +105,16 @@ class WelcomePage(QWizardPage):
 
         form = QFormLayout()
         form.addRow("Sprache der App", self.app)
-        form.addRow("Sprache der Titel", self.meta)
+        form.addRow("Sprache der Titel", self.meta)  # default; each library can override it
         lay = QVBoxLayout(self)
         lay.addWidget(_label("ShelfSort benennt Filme und Serien so, wie Plex sie erwartet, verschiebt sie in deine "
                              "Bibliothek und hält Folgennummern passend zur Reihenfolge in Plex."))
         lay.addSpacing(8)
         lay.addLayout(form)
         lay.addWidget(_label("Die <b>Sprache der Titel</b> bestimmt Film-, Serien- und Folgentitel in den "
-                             "Dateinamen. Sie sollte zur Sprache deiner Plex-Bibliotheken passen – ShelfSort "
-                             "prüft das später und weist auf Abweichungen hin.", GRAY))
+                             "Dateinamen. Bibliotheken aus Plex bekommen automatisch ihre Plex-Sprache, und jede "
+                             "Bibliothek lässt sich einzeln umstellen (z. B. Englisch für eine OV-Bibliothek). "
+                             "Diese Einstellung gilt für alles andere.", GRAY))
         lay.addStretch()
 
     def set_metadata_language(self, code: str) -> None:
@@ -365,16 +366,27 @@ class _LibraryRow:
     """One library: managed yes/no, local folder (found automatically), default for its kind."""
 
     def __init__(self, page: "LibrariesPage", kind: str, title: str, section: dict | None,
-                 local: str, managed: bool, default: bool):
+                 local: str, managed: bool, default: bool, language: str, count: int | None = None):
         self.page, self.kind, self.title, self.section = page, kind, title, section
+        self.count = count or 0
         self.samples: list[str] = []
         self.searched = False
         self.check = QCheckBox(f"{title}" + (f"  ({', '.join(section['locations'])})" if section else ""))
         self.check.setChecked(managed)
         self.check.setEnabled(section is not None)  # without Plex both rows are required
         self.check.toggled.connect(self._toggled)
-        self.kind_label = QLabel(KINDS[kind])
+        unit = "Filme" if kind == "movie" else "Serien"
+        self.kind_label = QLabel(f"{count} {unit}" if count is not None else KINDS[kind])
         self.kind_label.setStyleSheet(GRAY)
+        # title language of this library (an OV library may want English titles)
+        self.lang = QComboBox()
+        for code, name in METADATA_LANGUAGES:
+            self.lang.addItem(name, code)
+        if self.lang.findData(language) < 0:
+            self.lang.addItem(language, language)
+        self.lang.setCurrentIndex(self.lang.findData(language))
+        self.lang.setToolTip("Sprache der Titel für diese Bibliothek")
+        self.lang.currentIndexChanged.connect(lambda _: self._verify())
         self.default = QRadioButton("Standard")
         self.default.setToolTip(f"Neue {KINDS[kind]} werden hierhin importiert.")
         self.default.setChecked(default)
@@ -396,9 +408,15 @@ class _LibraryRow:
         h.addWidget(self.path, 1)
         h.addWidget(self.browse)
         grid.addWidget(box, row, 2)
-        grid.addWidget(self.default, row, 3)
-        grid.addWidget(self.status, row + 1, 0, 1, 4)
+        grid.addWidget(self.lang, row, 3)
+        grid.addWidget(self.default, row, 4)
+        grid.addWidget(self.status, row + 1, 0, 1, 5)
         self._toggled(self.check.isChecked())
+
+    @property
+    def plex_language(self) -> str:
+        lang = (self.section or {}).get("language", "")
+        return "" if lang in ("", "xn") else lang
 
     @property
     def managed(self) -> bool:
@@ -408,7 +426,7 @@ class _LibraryRow:
         return self.section["locations"][0] if self.section and self.section["locations"] else ""
 
     def _toggled(self, on: bool) -> None:
-        for w in (self.path, self.browse, self.default):
+        for w in (self.path, self.browse, self.default, self.lang):
             w.setEnabled(on)
         if not on:
             self.status.setText("")
@@ -482,7 +500,7 @@ class _LibraryRow:
     def to_config(self) -> LibraryConfig:
         return LibraryConfig(self.kind, self.title, self.path.text().strip(),
                              self.section["key"] if self.section else "", self.server_root(),
-                             self.default.isChecked())
+                             self.default.isChecked(), self.lang.currentData())
 
 
 class LibrariesPage(QWizardPage):
@@ -503,7 +521,7 @@ class LibrariesPage(QWizardPage):
 
     def _clear(self) -> None:
         for row in self.rows:
-            for w in (row.check, row.kind_label, row.path.parentWidget(), row.default, row.status):
+            for w in (row.check, row.kind_label, row.path.parentWidget(), row.lang, row.default, row.status):
                 w.setParent(None)
             self.groups[row.kind].removeButton(row.default)
         self.rows = []
@@ -516,13 +534,15 @@ class LibrariesPage(QWizardPage):
         """Keep exactly one default per kind among the managed libraries."""
         rows = [r for r in self.rows if r.kind == kind and r.managed]
         if rows and not any(r.default.isChecked() for r in rows):
-            rows[0].default.setChecked(True)
+            # the biggest library is usually the main one ("Filme" rather than "Disney")
+            max(rows, key=lambda r: r.count).default.setChecked(True)
 
     def initializePage(self) -> None:
         wiz = self.wizard()
         server_page: ServerPage = wiz.page(PAGE_SERVER)
         login: PlexLoginPage = wiz.page(PAGE_PLEX)
         self._clear()
+        default_lang = wiz.page(PAGE_WELCOME).metadata_language
         use_plex = not login.skip.isChecked() and server_page.url and server_page.server()
         if not use_plex:
             self.plex = None
@@ -530,7 +550,8 @@ class LibrariesPage(QWizardPage):
             self.info.setText("")
             for kind in ("movie", "show"):
                 lib = self.cfg.default_lib(kind)
-                self._add(_LibraryRow(self, kind, KINDS[kind], None, lib.local_root if lib else "", True, True))
+                self._add(_LibraryRow(self, kind, KINDS[kind], None, lib.local_root if lib else "", True, True,
+                                      (lib.language if lib and lib.language else default_lang)))
             return
         self.setSubTitle("Welche Plex-Bibliotheken soll ShelfSort verwalten – und wo liegen ihre Ordner?")
         self.info.setText("ShelfSort sucht die Ordner selbst und prüft sie an echten Dateien aus Plex (der Server "
@@ -542,22 +563,30 @@ class LibrariesPage(QWizardPage):
         known = {lib.section_key: lib for lib in self.cfg.libs if lib.section_key}
         by_folder = {Path(lib.local_root).name.lower(): lib for lib in self.cfg.libs}
 
-        def loaded(sections):
-            for sec in sections:
-                if sec["type"] not in KINDS:
-                    continue
+        plex = self.plex
+
+        def load():
+            sections = [s for s in plex.sections() if s["type"] in KINDS]
+            return [(s, plex.section_size(s)) for s in sections]
+
+        def loaded(result):
+            for sec, count in result:
                 kind = "movie" if sec["type"] == "movie" else "show"
                 old = known.get(sec["key"]) or next(
                     (by_folder[Plex._basename(l)] for l in sec["locations"] if Plex._basename(l) in by_folder), None)
                 personal = sec.get("agent", "").endswith(".none")  # e.g. "Andere Videos"
                 managed = old is not None if self.cfg.libs else not personal
+                plex_lang = sec.get("language", "")
+                # saved choice, else the language the library uses in Plex, else the default from page 1
+                language = (old.language if old and old.language
+                            else plex_lang if plex_lang not in ("", "xn") else default_lang)
                 self._add(_LibraryRow(self, kind, sec["title"], sec, old.local_root if old else "", managed,
-                                      bool(old and old.default)))
+                                      bool(old and old.default), language, count))
             for kind in KINDS:
                 self.pick_default(kind)
             self.completeChanged.emit()
 
-        run_async(self, self.plex.sections, loaded, lambda m: self.info.setText(f"Fehler: {m}"))
+        run_async(self, load, loaded, lambda m: self.info.setText(f"Fehler: {m}"))
 
     def chosen(self) -> list[LibraryConfig]:
         return [r.to_config() for r in self.rows if r.managed]
@@ -577,7 +606,7 @@ class DonePage(QWizardPage):
         self.lang_hint = _label("", BAD)
         self.lang_fix = QPushButton()
         self.lang_fix.clicked.connect(self._adopt_language)
-        self._plex_language = ""
+        self._mismatched = []
         lay = QVBoxLayout(self)
         lay.addWidget(self.summary)
         lay.addWidget(self.lang_hint)
@@ -595,45 +624,43 @@ class DonePage(QWizardPage):
         welcome: WelcomePage = wiz.page(PAGE_WELCOME)
         libs: LibrariesPage = wiz.page(PAGE_LIBS)
         server: ServerPage = wiz.page(PAGE_SERVER)
-        meta = welcome.metadata_language
         html = []
 
         if libs.plex and server.server():
             html.append(self._section("Plex", f"<b>{server.server().name}</b> &nbsp;·&nbsp; {server.url}"))
         else:
             html.append(self._section("Plex", "nicht verbunden – Scan, Plex-Abgleich und Specials-Check sind aus"))
-        html.append(self._section("Sprache", f"App: <b>{welcome.app.currentText()}</b> &nbsp;·&nbsp; "
-                                             f"Titel: <b>{language_name(meta)}</b>"))
+        html.append(self._section("Sprache", f"App: <b>{welcome.app.currentText()}</b>"))
 
+        managed = [r for r in libs.rows if r.managed]
+        # titles should be in the language the library uses in Plex, else file names and Plex disagree
+        self._mismatched = [r for r in managed if r.plex_language
+                            and not _same_language(r.plex_language, r.lang.currentData())]
         rows = []
-        for row in (r for r in libs.rows if r.managed):
+        for row in managed:
             lib = row.to_config()
-            lang = (row.section or {}).get("language", "")
-            lang_cell = language_name(lang) if lang and lang != "xn" else "–"
+            warn = " ⚠" if row in self._mismatched else ""
+            plex_lang = language_name(row.plex_language) if row.plex_language else "–"
             rows.append(f"<tr><td><b>{lib.title}</b></td><td>{KINDS[lib.kind]}</td>"
                         f"<td>{'✓ Standard' if lib.default else ''}</td><td>{lib.local_root}</td>"
-                        f"<td>{lang_cell}</td></tr>")
+                        f"<td>{language_name(lib.language)}{warn}</td><td>{plex_lang}</td></tr>")
         table = ('<table cellspacing="0" cellpadding="4" width="100%">'
                  '<tr style="color:gray"><td>Bibliothek</td><td>Typ</td><td>Neue Importe</td><td>Ordner</td>'
-                 '<td>Sprache in Plex</td></tr>' + "".join(rows) + "</table>")
+                 '<td>Titel</td><td>in Plex</td></tr>' + "".join(rows) + "</table>")
         html.append(self._section("Bibliotheken", table))
         self.summary.setText("".join(html))
 
-        # titles should be in the language the Plex libraries use, else names and Plex disagree
-        plex_langs = {(r.section or {}).get("language", "") for r in libs.rows if r.managed}
-        plex_langs = {l for l in plex_langs if l and l != "xn"}
-        other = next((l for l in sorted(plex_langs) if not _same_language(l, meta)), None)
-        self._plex_language = other or ""
-        self.lang_hint.setVisible(bool(other))
-        self.lang_fix.setVisible(bool(other))
-        if other:
-            self.lang_hint.setText(f"Deine Plex-Bibliotheken nutzen <b>{language_name(other)}</b>, die Titel sind "
-                                   f"auf <b>{language_name(meta)}</b> eingestellt. Dann heißen Dateien anders als "
-                                   f"Plex sie anzeigt.")
-            self.lang_fix.setText(f"Titel auf {language_name(other)} umstellen")
+        self.lang_hint.setVisible(bool(self._mismatched))
+        self.lang_fix.setVisible(bool(self._mismatched))
+        if self._mismatched:
+            names = ", ".join(f"<b>{r.title}</b> ({language_name(r.plex_language)} in Plex)" for r in self._mismatched)
+            self.lang_hint.setText(f"Titelsprache weicht von Plex ab: {names}. Dann heißen Dateien anders, als Plex "
+                                   f"sie anzeigt – gewollt z. B. nur, wenn Plex selbst falsch eingestellt ist.")
+            self.lang_fix.setText("Titelsprache an Plex angleichen")
 
     def _adopt_language(self) -> None:
-        self.wizard().page(PAGE_WELCOME).set_metadata_language(self._plex_language)
+        for row in self._mismatched:
+            row.lang.setCurrentIndex(max(0, row.lang.findData(row.plex_language)))
         self.initializePage()
 
 

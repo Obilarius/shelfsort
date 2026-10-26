@@ -47,6 +47,14 @@ class Plex:
             for d in data.get("Directory", [])
         ]
 
+    def section_size(self, section: dict) -> int:
+        """Number of movies/shows in a library (without loading them)."""
+        item_type = 2 if section["type"] == "show" else 1
+        data = self._get(f"/library/sections/{section['key']}/all", type=item_type,
+                         **{"X-Plex-Container-Start": 0, "X-Plex-Container-Size": 0})
+        mc = data.get("MediaContainer", {})
+        return int(mc.get("totalSize") or mc.get("size") or 0)
+
     def sample_files(self, section: dict, count: int = 8) -> list[str]:
         """Paths (as the server sees them) of a few video files of a library - for checking a path mapping."""
         leaf_type = 4 if section["type"] == "show" else 1  # episodes / movies

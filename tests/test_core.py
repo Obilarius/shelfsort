@@ -122,7 +122,7 @@ def test_import_uses_plex_ordering_for_known_shows(tmp_path, lib_dirs):
     plex = [PlexEpisode(7, 6, "Die Schneemänner", summary="Weihnachten 1892", thumb="https://x/t/p/original/a.jpg")]
     asked = []
 
-    def source(show_dir, tmdb_id=None):
+    def source(show_dir, tmdb_id=None, language=None):
         asked.append(show_dir)
         return plex
 

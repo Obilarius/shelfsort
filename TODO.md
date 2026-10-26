@@ -22,7 +22,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Pfad-Zuordnung** lokal ↔ Server – automatischer Vorschlag, geprüft an Beispieldateien aus Plex (`path_mapping.py`).
 - [x] **Einrichtungs-Assistent** beim ersten Start und über „Einrichten …“.
 - [ ] **PIN-Anmeldung einmal komplett von Hand testen** (Browser-Schritt lässt sich nicht automatisch testen).
-- [x] Sprache im Assistenten: App-Sprache (Englisch folgt) und Sprache der Titel, mit Hinweis wenn sie nicht zur Plex-Bibliothek passt.
+- [x] Sprache im Assistenten: App-Sprache (Englisch folgt), Standard-Titelsprache und Titelsprache pro Bibliothek (vorbelegt aus Plex, z. B. Englisch für OV), Hinweis bei Abweichung von Plex.
+- [x] Standard-Bibliothek bei Neueinrichtung: die größte pro Typ; Anzahl Filme/Serien wird angezeigt.
 
 ## 3. Installation & Updates
 

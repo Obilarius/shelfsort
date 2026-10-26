@@ -39,6 +39,7 @@ class LibraryConfig:
     section_key: str = ""  # Plex library
     server_root: str = ""  # the same folder as the Plex server sees it
     default: bool = False  # new imports of this kind go here
+    language: str = ""  # titles for this library (e.g. "en-US" for an OV library); "" = Config.language
 
     @property
     def path(self) -> Path:

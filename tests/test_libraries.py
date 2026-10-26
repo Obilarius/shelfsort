@@ -78,3 +78,33 @@ def test_old_config_is_migrated(tmp_path, monkeypatch):
     cfg.set_libs(cfg.libs + [LibraryConfig("movie", "Disney", r"X:\d")])
     assert [l.title for l in cfg.libs_of("movie")] == ["Filme", "Disney"]
     assert cfg.default_lib("movie").title == "Filme"
+
+
+class LangTMDB(FakeTMDB):
+    """FakeTMDB that knows two languages: German titles, English = original titles."""
+
+    def __init__(self, language="de-DE"):
+        self.language = language
+
+    def for_language(self, language):
+        return self if language == self.language else LangTMDB(language)
+
+    def movie(self, i):
+        m = super().movie(i)
+        if m and self.language.startswith("en"):
+            m = {**m, "title": m["original_title"]}
+        return m
+
+
+def test_ov_library_gets_titles_in_its_own_language(tmp_path):
+    movies, ov, tv = tmp_path / "movies", tmp_path / "ov", tmp_path / "tvshows"
+    for d in (movies, ov, tv):
+        d.mkdir()
+    lib = Library(movies, tv, [movies, ov], [tv], {str(ov).lower(): "OV"},
+                  {str(movies).lower(): "de-DE", str(ov).lower(): "en-US", str(tv).lower(): "de-DE"})
+    touch(tmp_path / "dl" / "F1.2025.German.DL.1080p.WEB.mkv")
+    [item] = build_import_plan(tmp_path / "dl", LangTMDB(), lib, 0)
+    assert item.target.name == "F1 - Der Film (2025).mkv"  # default library: German
+    [ov_item] = item.retarget(ov)
+    assert ov_item.target == ov / "F1 (2025) {tmdb-911430}" / "F1 (2025).mkv"  # OV library: English
+    assert ov_item.match.title == "F1"

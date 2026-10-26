@@ -259,9 +259,11 @@ class PlexCatalog:
         self._lists[key] = result
         return result
 
-    def load_episodes(self, show: PlexShow) -> list[PlexEpisode]:
-        if not show.episodes:
-            show.episodes = self.episode_list(show, show.ordering)
+    def load_episodes(self, show: PlexShow, language: str | None = None) -> list[PlexEpisode]:
+        """Episodes in the show's ordering; titles in `language` (the library's), English as a second set."""
+        lang = (language or self.lang).split("-")[0]
+        langs = [lang] + (["en"] if lang != "en" else [])
+        show.episodes = self.episode_list(show, show.ordering, langs)
         return show.episodes
 
     # --- specials check ---
@@ -339,7 +341,8 @@ class PlexEpisodeSource:
     def is_new(self, show_dir: Path) -> bool:
         return self._shows is not None and str(show_dir).lower() not in self._shows
 
-    def __call__(self, show_dir: Path, tmdb_id: int | None = None) -> list[PlexEpisode] | None:
+    def __call__(self, show_dir: Path, tmdb_id: int | None = None,
+                 language: str | None = None) -> list[PlexEpisode] | None:
         if self._shows is None:
             try:
                 self._shows = self.catalog.shows()
@@ -359,7 +362,7 @@ class PlexEpisodeSource:
         if not show:
             return None
         try:
-            return self.catalog.load_episodes(show)
+            return self.catalog.load_episodes(show, language)
         except Exception as e:
             self.error = str(e)
             return None

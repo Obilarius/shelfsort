@@ -20,7 +20,7 @@ class DownCatalog:
     def shows(self, progress=None):
         return {str(d).lower(): PlexShow(d.name, "1", "plex://show/x", "tvdbAiring", d) for d in self.tv.iterdir()}
 
-    def load_episodes(self, show):
+    def load_episodes(self, show, language=None):
         raise ProviderError("Plex-Metadatendienst nicht erreichbar oder verändert (503)")
 
 

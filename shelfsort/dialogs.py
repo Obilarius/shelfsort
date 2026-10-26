@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog
                                QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
                                QWidget)
 
-from .config import KINDS, METADATA_LANGUAGES, Config
+from .config import KINDS, METADATA_LANGUAGES, Config, language_name
 from .plex import Plex
 from .tmdb import TMDB
 
@@ -50,11 +50,12 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("TMDB API-Key / Token", self.tmdb_key)
-        form.addRow("Sprache der Titel", self.language)
+        form.addRow("Standard-Sprache der Titel", self.language)
         form.addRow("Plex-URL", self.plex_url)
         form.addRow("Plex-Token", self.plex_token)
-        libs = "<br>".join(f"<b>{lib.title}</b> ({KINDS[lib.kind]}{', Standard' if lib.default else ''}): "
-                           f"{lib.local_root}" for lib in cfg.libs) or "keine"
+        libs = "<br>".join(f"<b>{lib.title}</b> ({KINDS[lib.kind]}{', Standard' if lib.default else ''}, "
+                           f"Titel: {language_name(lib.language or cfg.language)}): {lib.local_root}"
+                           for lib in cfg.libs) or "keine"
         libs_label = QLabel(libs + "<br><i>Ändern über „Einrichten …“ im Menü.</i>")
         libs_label.setTextFormat(Qt.RichText)
         libs_label.setWordWrap(True)

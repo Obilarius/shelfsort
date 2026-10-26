@@ -139,7 +139,7 @@ def test_episode_source_finds_new_shows_by_tmdb_id(tmp_path):
         def match_show(self, tmdb_id):
             return "plex://show/abc" if tmdb_id == 82728 else None
 
-        def load_episodes(self, show: PlexShow):
+        def load_episodes(self, show: PlexShow, language=None):
             self.lists.append((show.guid, show.ordering))
             return [PlexEpisode(3, 49, "Das Schild"), PlexEpisode(3, 50, "Überraschung")]
 

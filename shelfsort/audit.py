@@ -9,7 +9,7 @@ from pathlib import Path
 from guessit import guessit
 
 from .importer import ProgressFn
-from .library import Library, list_dirs
+from .library import Library, list_dirs, localized
 from .matcher import find_movie, find_show, movie_by_id, show_by_id
 from .naming import (SEASON_DIR_RE, VALID_MOVIE_DIR, VALID_SHOW_DIR, YEAR_SUFFIX_RE, episode_code, episode_name,
                      movie_folder, movie_name, show_folder, strip_ids, title_of, tmdb_id_of)
@@ -49,19 +49,21 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
     for i, (d, fn) in enumerate(jobs):
         if progress:
             progress(f"Prüfe {d.parent.name}\\{d.name}", i, len(jobs))
+        language = lib.language_of(d)  # each library may use its own title language (e.g. OV)
+        t = localized(tmdb, language)
         try:
             if fn is audit_show_dir and str(d).lower() in plex_shows:
                 try:
-                    eps = catalog.load_episodes(plex_shows[str(d).lower()])
+                    eps = catalog.load_episodes(plex_shows[str(d).lower()], language)
                 except ProviderError as e:
                     # unofficial service down/changed: say so once, continue without Plex sync
                     items.append(PlanItem("show_dir", lib.tv_root, "plex-provider", status="error",
                                           note=f"{e} – Plex-Abgleich übersprungen, Serien nur nach Namen geprüft"))
                     plex_shows = {}
                 else:
-                    items += audit_show_dir(d, tmdb, lib, opts, plex_eps=eps)
+                    items += audit_show_dir(d, t, lib, opts, plex_eps=eps)
                     continue
-            items += fn(d, tmdb, lib, opts)
+            items += fn(d, t, lib, opts)
         except Exception as e:
             items.append(PlanItem("movie" if fn is audit_movie_dir else "show_dir", d, str(d),
                                   status="error", note=str(e)))

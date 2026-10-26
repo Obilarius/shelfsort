@@ -8,11 +8,11 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 
 `ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten …** im Menü):
 
-1. **Sprache** – App-Sprache (bisher Deutsch) und Sprache der Titel. Die Titelsprache sollte zur Sprache der Plex-Bibliotheken passen; die Übersicht am Ende weist auf Abweichungen hin.
+1. **Sprache** – App-Sprache (bisher Deutsch) und Standard-Sprache der Titel.
 2. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
 3. **Bei Plex anmelden** – die Anmeldung läuft auf plex.tv im Browser, ShelfSort bekommt nur den Zugangsschlüssel, nie das Passwort. Ohne Plex geht es auch („Ohne Plex weiter“), dann fehlen Scan, Plex-Abgleich und Specials-Check.
 4. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
-5. **Bibliotheken wählen** – alle Film- und Serien-Bibliotheken aus Plex anhaken, die ShelfSort verwalten soll (z. B. „Filme“, „Disney“, „Serien“). ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien. Pro Typ ist eine Bibliothek **Standard** für neue Importe. Bibliotheken für eigene Videos („Andere Videos“) sind standardmäßig nicht angehakt.
+5. **Bibliotheken wählen** – alle Film- und Serien-Bibliotheken aus Plex anhaken, die ShelfSort verwalten soll (z. B. „Filme“, „Disney“, „Serien“). ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien. Pro Typ ist eine Bibliothek **Standard** für neue Importe – bei einer Neueinrichtung die größte. Jede Bibliothek hat ihre eigene **Titelsprache**, vorbelegt mit ihrer Sprache in Plex (z. B. Englisch für eine OV-Bibliothek); weicht sie von Plex ab, warnt die Übersicht am Ende. Bibliotheken für eigene Videos („Andere Videos“) sind standardmäßig nicht angehakt.
 
 Unter **Einstellungen** lässt sich alles auch von Hand ändern (z. B. Mindestgröße für Videos, Sprache der Metadaten). Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from .library import Library
+from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
 from .naming import episode_name, movie_folder, movie_name, show_folder
 from .parse import is_video, parse_release, walk_videos
@@ -12,8 +12,8 @@ from .plan import Override, PlanItem, finalize
 from .plex_sync import is_placeholder
 
 ProgressFn = Callable[[str, int, int], None]
-# (show folder, TMDB id) -> episode list in the order Plex uses / will use for that show (None: unknown)
-EpisodeSource = Callable[[Path, "int | None"], "list | None"]
+# (show folder, TMDB id, language) -> episode list in the order Plex uses / will use for that show
+EpisodeSource = Callable[..., "list | None"]
 
 
 def release_dir(video: Path, root: Path) -> Path | None:
@@ -54,6 +54,18 @@ def plan_import(video: Path, root: Path, tmdb, lib: Library, override: Override 
     return item
 
 
+def _in_language(match, by_id, tmdb, language: str | None):
+    """The match with title/overview in the target library's language (e.g. English for an OV library)."""
+    t = localized(tmdb, language)
+    if t is tmdb:
+        return match
+    other = by_id(t, match.tmdb_id)
+    if not other:
+        return match
+    other.confident = match.confident
+    return other
+
+
 def _existing(found: Path | None, target: Path | None, lib: Library) -> tuple[Path | None, Path | None]:
     """(folder to use, folder in another library). A chosen target library wins over an existing folder."""
     if found and target and lib.root_of(found) != target:
@@ -79,9 +91,11 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
     if not match:
         item.status, item.note = "review", f"Kein TMDB-Treffer für „{p.title}“ – Doppelklick zum Suchen"
         return
-    item.match = match
     existing, elsewhere = _existing(lib.movie_by_id.get(match.tmdb_id), target, lib)
-    folder = existing or (target or lib.movies_root) / movie_folder(match.title, match.year, match.tmdb_id)
+    root = lib.root_of(existing) if existing else (target or lib.movies_root)
+    match = _in_language(match, movie_by_id, tmdb, lib.language_of(root))
+    item.match = match
+    folder = existing or root / movie_folder(match.title, match.year, match.tmdb_id)
     name = movie_name(match.title, match.year) + (f" - pt{p.part}" if p.part else "")
     item.set_video_move(video, folder / (name + video.suffix.lower()))
 
@@ -121,11 +135,16 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
         return
 
     existing, elsewhere = _existing(lib.show_by_id.get(match.tmdb_id), target, lib)
-    show_dir = existing or (target or lib.tv_root) / show_folder(match.title, match.tmdb_id)
+    root = lib.root_of(existing) if existing else (target or lib.tv_root)
+    language = lib.language_of(root)
+    match = _in_language(match, show_by_id, tmdb, language)
+    tmdb = localized(tmdb, language)  # episode titles below in the library's language too
+    item.match = match
+    show_dir = existing or root / show_folder(match.title, match.tmdb_id)
     # Shows Plex already knows: titles come from the Plex list in the show's chosen ordering
     # (e.g. TheTVDB "BBC iPlayer"), so the name matches what Plex shows for this number.
     # New shows too: Plex will number them by the library's default ordering once imported.
-    in_plex = plex_eps(show_dir, match.tmdb_id) if plex_eps else None
+    in_plex = plex_eps(show_dir, match.tmdb_id, language) if plex_eps else None
     if in_plex:
         by_num = {(e.season, e.episode): e for e in in_plex}
 
