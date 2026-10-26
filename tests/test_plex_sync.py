@@ -130,10 +130,10 @@ def test_episode_source_finds_new_shows_by_tmdb_id(tmp_path):
         def __init__(self):
             self.lists = []
 
-        def shows(self, tv_root):
+        def shows(self, progress=None):
             return {}  # show not in the library yet
 
-        def library_ordering(self, tv_root):
+        def library_ordering(self, lib=None):
             return "tvdbAiring"
 
         def match_show(self, tmdb_id):
@@ -144,7 +144,7 @@ def test_episode_source_finds_new_shows_by_tmdb_id(tmp_path):
             return [PlexEpisode(3, 49, "Das Schild"), PlexEpisode(3, 50, "Überraschung")]
 
     cat = FakeCatalog()
-    src = PlexEpisodeSource(cat, tmp_path)
+    src = PlexEpisodeSource(cat)
     eps = src(tmp_path / "Bluey {tmdb-82728}", 82728)
     assert [e.title for e in eps] == ["Das Schild", "Überraschung"]
     assert cat.lists == [("plex://show/abc", "tvdbAiring")]  # library default ordering

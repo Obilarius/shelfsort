@@ -4,11 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
                                QWidget)
 
-from .config import Config
+from .config import KINDS, METADATA_LANGUAGES, Config
 from .plex import Plex
 from .tmdb import TMDB
 
@@ -34,12 +34,15 @@ class SettingsDialog(QDialog):
         self.cfg = cfg
         self.tmdb_key = QLineEdit(cfg.tmdb_key)
         self.tmdb_key.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-        self.language = QLineEdit(cfg.language)
+        self.language = QComboBox()
+        for code, name in METADATA_LANGUAGES:
+            self.language.addItem(f"{name}  ({code})", code)
+        if self.language.findData(cfg.language) < 0:
+            self.language.addItem(cfg.language, cfg.language)
+        self.language.setCurrentIndex(self.language.findData(cfg.language))
         self.plex_url = QLineEdit(cfg.plex_url)
         self.plex_token = QLineEdit(cfg.plex_token)
         self.plex_token.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-        self.movies_root = QLineEdit(cfg.movies_root)
-        self.tv_root = QLineEdit(cfg.tv_root)
         self.min_mb = QSpinBox()
         self.min_mb.setRange(0, 10000)
         self.min_mb.setSuffix(" MB")
@@ -47,15 +50,18 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.addRow("TMDB API-Key / Token", self.tmdb_key)
-        form.addRow("Sprache", self.language)
+        form.addRow("Sprache der Titel", self.language)
         form.addRow("Plex-URL", self.plex_url)
         form.addRow("Plex-Token", self.plex_token)
-        form.addRow("Filme-Ordner", _path_row(self.movies_root, self))
-        form.addRow("Serien-Ordner", _path_row(self.tv_root, self))
+        libs = "<br>".join(f"<b>{lib.title}</b> ({KINDS[lib.kind]}{', Standard' if lib.default else ''}): "
+                           f"{lib.local_root}" for lib in cfg.libs) or "keine"
+        libs_label = QLabel(libs + "<br><i>Ändern über „Einrichten …“ im Menü.</i>")
+        libs_label.setTextFormat(Qt.RichText)
+        libs_label.setWordWrap(True)
+        form.addRow("Bibliotheken", libs_label)
         form.addRow("Videos ignorieren unter", self.min_mb)
-        hint = QLabel('TMDB-Key: themoviedb.org → Einstellungen → API. '
-                      'Plex-Token: in Plex Web bei einem Film „Medien-Info“ → „XML anzeigen“, '
-                      'Wert von <code>X-Plex-Token</code> in der URL.')
+        hint = QLabel('TMDB-Key: themoviedb.org → Einstellungen → API. Plex-Anmeldung, Server und '
+                      'Bibliotheken richtet „Einrichten …“ im Menü ein; URL und Token hier nur bei Bedarf von Hand.')
         hint.setWordWrap(True)
         hint.setTextFormat(Qt.RichText)
 
@@ -77,7 +83,7 @@ class SettingsDialog(QDialog):
     def _test(self) -> None:
         lines = []
         try:
-            r = TMDB(self.tmdb_key.text().strip(), self.language.text().strip()).search_movie("Matrix")
+            r = TMDB(self.tmdb_key.text().strip(), self.language.currentData()).search_movie("Matrix")
             lines.append(f"TMDB: OK ({len(r)} Treffer für „Matrix“)")
         except Exception as e:
             lines.append(f"TMDB: {e}")
@@ -94,11 +100,9 @@ class SettingsDialog(QDialog):
     def _save(self) -> None:
         c = self.cfg
         c.tmdb_key = self.tmdb_key.text().strip()
-        c.language = self.language.text().strip() or "de-DE"
+        c.language = self.language.currentData() or "de-DE"
         c.plex_url = self.plex_url.text().strip()
         c.plex_token = self.plex_token.text().strip()
-        c.movies_root = self.movies_root.text().strip()
-        c.tv_root = self.tv_root.text().strip()
         c.min_video_mb = self.min_mb.value()
         c.save()
         self.accept()

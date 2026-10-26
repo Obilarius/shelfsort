@@ -5,7 +5,7 @@ import json
 import os
 import shutil
 import uuid
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from .plex import LibraryMap
@@ -14,20 +14,55 @@ _APPDATA = Path(os.environ.get("APPDATA", Path.home()))
 CONFIG_PATH = _APPDATA / "ShelfSort" / "config.json"
 _OLD_CONFIG_PATH = _APPDATA / "plex-renamer" / "config.json"  # before the rename to ShelfSort
 
+KINDS = {"movie": "Filme", "show": "Serien"}
+
+# languages offered for titles/descriptions (TMDB and Plex language codes)
+METADATA_LANGUAGES = [
+    ("de-DE", "Deutsch"), ("en-US", "Englisch (USA)"), ("en-GB", "Englisch (UK)"), ("fr-FR", "Französisch"),
+    ("es-ES", "Spanisch"), ("it-IT", "Italienisch"), ("nl-NL", "Niederländisch"), ("pl-PL", "Polnisch"),
+    ("pt-BR", "Portugiesisch (Brasilien)"), ("sv-SE", "Schwedisch"), ("da-DK", "Dänisch"),
+    ("nb-NO", "Norwegisch"), ("fi-FI", "Finnisch"), ("cs-CZ", "Tschechisch"), ("tr-TR", "Türkisch"),
+    ("ja-JP", "Japanisch"),
+]
+
+
+def language_name(code: str) -> str:
+    return dict(METADATA_LANGUAGES).get(code, code)
+
+
+@dataclass
+class LibraryConfig:
+    """One library ShelfSort manages - a local folder, optionally tied to a Plex library."""
+    kind: str  # "movie" | "show"
+    title: str
+    local_root: str
+    section_key: str = ""  # Plex library
+    server_root: str = ""  # the same folder as the Plex server sees it
+    default: bool = False  # new imports of this kind go here
+
+    @property
+    def path(self) -> Path:
+        return Path(self.local_root)
+
+    def map(self) -> LibraryMap:
+        return LibraryMap(self.path, self.section_key or None, self.server_root or None)
+
 
 @dataclass
 class Config:
     tmdb_key: str = ""
-    language: str = "de-DE"
+    app_language: str = "de"  # user interface (only German so far)
+    language: str = "de-DE"  # metadata: titles/descriptions from TMDB and Plex
     plex_url: str = "http://localhost:32400"
     plex_token: str = ""
-    movies_root: str = ""
-    tv_root: str = ""
     min_video_mb: int = 100
     last_import_dir: str = ""
-    # set by the setup wizard: which Plex server/libraries, and where their folders are on the server
     client_id: str = ""  # identifies this ShelfSort installation at plex.tv
     plex_server_name: str = ""
+    libraries: list[dict] = field(default_factory=list)  # LibraryConfig as dicts
+    # before multiple libraries (read once, then moved into `libraries`)
+    movies_root: str = ""
+    tv_root: str = ""
     movies_section: str = ""
     movies_server_root: str = ""
     tv_section: str = ""
@@ -43,19 +78,51 @@ class Config:
         except (OSError, ValueError):
             return cls()
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        cfg = cls(**{k: v for k, v in data.items() if k in known})
+        cfg._migrate()
+        return cfg
+
+    def _migrate(self) -> None:
+        if self.libraries:
+            return
+        for kind, root, section, server in (("movie", self.movies_root, self.movies_section, self.movies_server_root),
+                                            ("show", self.tv_root, self.tv_section, self.tv_server_root)):
+            if root:
+                self.libraries.append(asdict(LibraryConfig(kind, KINDS[kind], root, section, server, True)))
+        self.movies_root = self.tv_root = self.movies_section = self.movies_server_root = ""
+        self.tv_section = self.tv_server_root = ""
 
     def save(self) -> None:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         CONFIG_PATH.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # --- libraries ---
+
+    @property
+    def libs(self) -> list[LibraryConfig]:
+        known = {f.name for f in fields(LibraryConfig)}
+        return [LibraryConfig(**{k: v for k, v in d.items() if k in known}) for d in self.libraries]
+
+    def set_libs(self, libs: list[LibraryConfig]) -> None:
+        self.libraries = [asdict(lib) for lib in libs]
+
+    def libs_of(self, kind: str) -> list[LibraryConfig]:
+        return [lib for lib in self.libs if lib.kind == kind]
+
+    def default_lib(self, kind: str) -> LibraryConfig | None:
+        libs = self.libs_of(kind)
+        return next((lib for lib in libs if lib.default), libs[0] if libs else None)
+
+    @property
+    def is_set_up(self) -> bool:
+        return bool(self.tmdb_key and self.default_lib("movie") and self.default_lib("show"))
+
     @property
     def roots(self) -> list[Path]:
-        return [Path(self.movies_root), Path(self.tv_root)]
+        return [lib.path for lib in self.libs]
 
     def library_maps(self) -> list[LibraryMap]:
-        return [LibraryMap(Path(self.movies_root), self.movies_section or None, self.movies_server_root or None),
-                LibraryMap(Path(self.tv_root), self.tv_section or None, self.tv_server_root or None)]
+        return [lib.map() for lib in self.libs]
 
     def ensure_client_id(self) -> str:
         if not self.client_id:

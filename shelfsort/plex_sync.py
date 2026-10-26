@@ -15,7 +15,7 @@ import requests
 
 from .matcher import norm
 from .naming import episode_code
-from .plex import Plex
+from .plex import LibraryMap, Plex
 
 PROVIDER = "https://metadata.provider.plex.tv/library/metadata"
 _PAREN = re.compile(r"\s*[\(\[][^)\]]*[\)\]]")
@@ -122,16 +122,21 @@ def _parse_enum(enum: str) -> list[tuple[str, str]]:
 
 
 class PlexCatalog:
-    def __init__(self, plex: Plex, language: str = "de-DE", tv_section: str | None = None,
-                 tv_server_root: str | None = None):
+    """Plex episode lists for the show libraries ShelfSort manages.
+
+    show_libs: local folder + Plex library + server path of each TV library (from the setup). A
+    library without section key is found by its folder name (older configs).
+    """
+
+    def __init__(self, plex: Plex, language: str = "de-DE", show_libs: list[LibraryMap] | None = None):
         self.plex = plex
-        self.tv_section = tv_section
-        self.tv_server_root = tv_server_root
+        self.show_libs = show_libs or []
         self.lang = language.split("-")[0]
         self.s = requests.Session()
         self.s.headers.update({"X-Plex-Token": plex.token, "Accept": "application/json",
                                "X-Plex-Language": self.lang})
         self._lists: dict[tuple[str, str], list[PlexEpisode]] = {}
+        self._sections: list[dict] | None = None
 
     def _provider(self, path: str, ordering: str | None, language: str | None = None) -> list[dict]:
         params = {"episodeOrder": ordering} if ordering else {}
@@ -151,27 +156,32 @@ class PlexCatalog:
             if not page or len(items) >= int(mc.get("totalSize") or 0):
                 return items
 
-    def _section(self, tv_root: Path) -> dict:
-        sections = self.plex.sections()
-        if self.tv_section:  # chosen in the setup wizard
-            section = next((s for s in sections if s["key"] == self.tv_section), None)
+    def _section(self, lib: LibraryMap) -> dict:
+        if self._sections is None:
+            self._sections = self.plex.sections()
+        if lib.section_key:  # chosen in the setup wizard
+            section = next((s for s in self._sections if s["key"] == lib.section_key), None)
         else:  # older configs: library whose folder has the same name
-            section = next((s for s in sections
-                            if s["type"] == "show" and any(Plex._basename(l) == tv_root.name.lower()
-                                                           for l in s["locations"])), None)
+            name = lib.local_root.name.lower()
+            section = next((s for s in self._sections
+                            if s["type"] == "show" and any(Plex._basename(l) == name for l in s["locations"])), None)
         if not section:
-            raise RuntimeError(f"Keine Plex-Serienbibliothek für „{tv_root}“ gefunden – bitte im "
+            raise RuntimeError(f"Keine Plex-Serienbibliothek für „{lib.local_root}“ gefunden – bitte im "
                                f"Einrichtungsassistenten zuordnen.")
         return section
 
-    def _bases(self, section: dict) -> list[str]:
-        """Server-side library folders whose content lives under the local tv_root."""
-        roots = [self.tv_server_root] if self.tv_server_root else section["locations"]
+    @staticmethod
+    def _bases(lib: LibraryMap, section: dict) -> list[str]:
+        """Server-side folders whose content lives under the library's local folder."""
+        roots = [lib.server_root] if lib.server_root else section["locations"]
         return [r.replace("\\", "/").rstrip("/") for r in roots]
 
-    def library_ordering(self, tv_root: Path, section: dict | None = None) -> str:
+    def library_ordering(self, lib: LibraryMap | None = None) -> str:
         """Ordering a show gets in this library unless it has its own setting."""
-        section = section or self._section(tv_root)
+        lib = lib or (self.show_libs[0] if self.show_libs else None)
+        if lib is None:
+            return "tvdbAiring"
+        section = self._section(lib)
         lib_value = next((p.get("value") for p in self.plex._get(f"/library/sections/{section['key']}/prefs")
                           .get("MediaContainer", {}).get("Setting", []) if p.get("id") == "showOrdering"), None)
         return LIBRARY_ORDERING.get(lib_value or "", "tvdbAiring")
@@ -184,10 +194,16 @@ class PlexCatalog:
         guid = hits[0].get("guid", "") if hits else ""
         return guid if guid.startswith("plex://show/") else None
 
-    def shows(self, tv_root: Path, progress=None) -> dict[str, PlexShow]:
-        """Plex-matched shows of the library whose folder lives under tv_root, keyed by lower-case local path."""
-        section = self._section(tv_root)
-        default_order = self.library_ordering(tv_root, section)
+    def shows(self, progress=None) -> dict[str, PlexShow]:
+        """Plex-matched shows of all managed show libraries, keyed by lower-case local folder."""
+        out: dict[str, PlexShow] = {}
+        for lib in self.show_libs:
+            out.update(self._library_shows(lib, progress))
+        return out
+
+    def _library_shows(self, lib: LibraryMap, progress=None) -> dict[str, PlexShow]:
+        section = self._section(lib)
+        default_order = self.library_ordering(lib)
         items = [s for s in self.plex._get(f"/library/sections/{section['key']}/all")
                  .get("MediaContainer", {}).get("Metadata", [])
                  if str(s.get("guid", "")).startswith("plex://show/")]  # matched by the Plex agent
@@ -206,9 +222,9 @@ class PlexCatalog:
                 own = meta.get("showOrdering") or pref.get("value") or None
                 for loc in meta.get("Location", []):
                     path = loc["path"].replace("\\", "/").rstrip("/")
-                    for base in self._bases(section):
+                    for base in self._bases(lib, section):
                         if path.lower().startswith(base.lower() + "/"):
-                            local = tv_root.joinpath(*path[len(base) + 1:].split("/"))
+                            local = lib.local_root.joinpath(*path[len(base) + 1:].split("/"))
                             out[str(local).lower()] = PlexShow(
                                 s.get("title", ""), s["ratingKey"], s["guid"], own or default_order, local,
                                 own, _parse_enum(pref.get("enumValues", "")))
@@ -284,9 +300,9 @@ class PlexCatalog:
         show.episodes = []
 
 
-def specials_overview(catalog: PlexCatalog, tv_root: Path, progress=None) -> tuple[list[SpecialsReport], list[str]]:
+def specials_overview(catalog: PlexCatalog, progress=None) -> tuple[list[SpecialsReport], list[str]]:
     """Specials report for every show that has specials; returns (reports, errors)."""
-    shows = catalog.shows(tv_root)
+    shows = catalog.shows()
     reports, errors = [], []
     with ThreadPoolExecutor(4) as pool:
         futures = {pool.submit(catalog.specials_report, s): s for s in shows.values()}
@@ -313,9 +329,8 @@ class PlexEpisodeSource:
     (TMDB often counts differently, e.g. Bluey S03E49 is a special there).
     """
 
-    def __init__(self, catalog: PlexCatalog, tv_root: Path):
+    def __init__(self, catalog: PlexCatalog):
         self.catalog = catalog
-        self.tv_root = tv_root
         self._shows: dict[str, PlexShow] | None = None
         self._new: dict[int, PlexShow | None] = {}
         self._default = "tvdbAiring"
@@ -327,8 +342,8 @@ class PlexEpisodeSource:
     def __call__(self, show_dir: Path, tmdb_id: int | None = None) -> list[PlexEpisode] | None:
         if self._shows is None:
             try:
-                self._shows = self.catalog.shows(self.tv_root)
-                self._default = self.catalog.library_ordering(self.tv_root)
+                self._shows = self.catalog.shows()
+                self._default = self.catalog.library_ordering()  # default TV library
             except Exception as e:  # Plex down -> import falls back to TMDB
                 self._shows, self.error = {}, str(e)
                 return None
@@ -394,6 +409,6 @@ def season_offsets(files: list[tuple[int, int, str]], episodes: list[PlexEpisode
 
 
 def catalog_for(cfg) -> PlexCatalog:
-    """Catalog for the configured server and TV library."""
-    return PlexCatalog(Plex(cfg.plex_url, cfg.plex_token), cfg.language, cfg.tv_section or None,
-                       cfg.tv_server_root or None)
+    """Catalog for the configured server and all TV libraries (default library first)."""
+    libs = sorted(cfg.libs_of("show"), key=lambda lib: not lib.default)
+    return PlexCatalog(Plex(cfg.plex_url, cfg.plex_token), cfg.language, [lib.map() for lib in libs])

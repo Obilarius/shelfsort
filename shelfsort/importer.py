@@ -33,21 +33,32 @@ def build_import_plan(root: Path, tmdb, lib: Library, min_bytes: int,
 
 
 def plan_import(video: Path, root: Path, tmdb, lib: Library, override: Override | None = None,
-                plex_eps: EpisodeSource | None = None) -> PlanItem:
+                plex_eps: EpisodeSource | None = None, target: Path | None = None) -> PlanItem:
+    """target: library folder chosen by the user; None = where the movie/show already is, else the default."""
     parsed = parse_release(video)
     kind = ("movie" if override.kind == "movie" else "episode") if override else parsed.kind
     item = PlanItem(kind=kind, source=video, group=str(video), parsed=parsed,
                     dialog_kind="movie" if kind == "movie" else "show")
-    item.replan = lambda ov: finalize([plan_import(video, root, tmdb, lib, ov, plex_eps)])
+    item.replan = lambda ov: finalize([plan_import(video, root, tmdb, lib, ov, plex_eps, target)])
+    item.retarget = lambda t: finalize([plan_import(video, root, tmdb, lib, override, plex_eps, t)])
     item.cleanup = release_dir(video, root)
     try:
         if kind == "movie":
-            _plan_movie(item, video, tmdb, lib, override)
+            _plan_movie(item, video, tmdb, lib, override, target)
         else:
-            _plan_episode(item, video, tmdb, lib, override, plex_eps)
+            _plan_episode(item, video, tmdb, lib, override, plex_eps, target)
     except Exception as e:  # network errors etc. - keep the row, show the reason
         item.status, item.note = "error", str(e)
+    if item.target and (r := lib.root_of(item.target)):
+        item.library = lib.title(r)
     return item
+
+
+def _existing(found: Path | None, target: Path | None, lib: Library) -> tuple[Path | None, Path | None]:
+    """(folder to use, folder in another library). A chosen target library wins over an existing folder."""
+    if found and target and lib.root_of(found) != target:
+        return None, found
+    return found, None
 
 
 def _find_any(find, tmdb, p):
@@ -61,22 +72,26 @@ def _find_any(find, tmdb, p):
     return first
 
 
-def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None) -> None:
+def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None,
+                target: Path | None = None) -> None:
     p = item.parsed
     match = movie_by_id(tmdb, ov.tmdb_id) if ov else _find_any(find_movie, tmdb, p)
     if not match:
         item.status, item.note = "review", f"Kein TMDB-Treffer für „{p.title}“ – Doppelklick zum Suchen"
         return
     item.match = match
-    existing = lib.movie_by_id.get(match.tmdb_id)
-    folder = existing or lib.movies_root / movie_folder(match.title, match.year, match.tmdb_id)
+    existing, elsewhere = _existing(lib.movie_by_id.get(match.tmdb_id), target, lib)
+    folder = existing or (target or lib.movies_root) / movie_folder(match.title, match.year, match.tmdb_id)
     name = movie_name(match.title, match.year) + (f" - pt{p.part}" if p.part else "")
     item.set_video_move(video, folder / (name + video.suffix.lower()))
 
     if not (match.confident or ov):
         item.status = "review"
         item.add_note("Treffer unsicher – bitte prüfen")
-    if existing:
+    if elsewhere:
+        item.status = "review"
+        item.add_note(f"Film liegt schon in Bibliothek „{lib.title(lib.root_of(elsewhere))}“")
+    elif existing:
         others = [f.name for f in existing.iterdir() if f.is_file() and is_video(f)]
         if others:
             item.status = "review"
@@ -92,7 +107,7 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
 
 
 def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None,
-                  plex_eps: EpisodeSource | None = None) -> None:
+                  plex_eps: EpisodeSource | None = None, target: Path | None = None) -> None:
     p = item.parsed
     season = ov.season if ov and ov.season is not None else p.season
     episodes = ov.episodes if ov and ov.episodes else p.episodes
@@ -105,7 +120,8 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
         item.status, item.note = "review", "Staffel/Folge nicht erkannt – Doppelklick zum Eintragen"
         return
 
-    show_dir = lib.show_by_id.get(match.tmdb_id) or lib.tv_root / show_folder(match.title, match.tmdb_id)
+    existing, elsewhere = _existing(lib.show_by_id.get(match.tmdb_id), target, lib)
+    show_dir = existing or (target or lib.tv_root) / show_folder(match.title, match.tmdb_id)
     # Shows Plex already knows: titles come from the Plex list in the show's chosen ordering
     # (e.g. TheTVDB "BBC iPlayer"), so the name matches what Plex shows for this number.
     # New shows too: Plex will number them by the library's default ordering once imported.
@@ -135,7 +151,11 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     if not (match.confident or ov):
         item.status = "review"
         item.add_note("Serien-Treffer unsicher – bitte prüfen")
-    if match.tmdb_id not in lib.show_by_id:
+    if elsewhere:
+        item.status = "review"
+        item.add_note(f"Serie liegt schon in Bibliothek „{lib.title(lib.root_of(elsewhere))}“ – "
+                      f"Folge käme in einen zweiten Serienordner")
+    elif not existing:
         item.add_note("Neue Serie")
     if in_plex:
         item.add_note("Titel laut Plex-Reihenfolge")

@@ -22,7 +22,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Pfad-Zuordnung** lokal ↔ Server – automatischer Vorschlag, geprüft an Beispieldateien aus Plex (`path_mapping.py`).
 - [x] **Einrichtungs-Assistent** beim ersten Start und über „Einrichten …“.
 - [ ] **PIN-Anmeldung einmal komplett von Hand testen** (Browser-Schritt lässt sich nicht automatisch testen).
-- [ ] *Optional:* Sprache der Metadaten im Assistenten wählen (jetzt nur in den Einstellungen).
+- [x] Sprache im Assistenten: App-Sprache (Englisch folgt) und Sprache der Titel, mit Hinweis wenn sie nicht zur Plex-Bibliothek passt.
 
 ## 3. Installation & Updates
 
@@ -37,7 +37,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 - [ ] **Englische Oberfläche** + Übersetzungsmöglichkeit (Qt-Übersetzungen oder einfache String-Tabelle); Sprache der Metadaten einstellbar (jetzt fest `de-DE`).
 - [ ] **Namensschema einstellbar**: Serienordner mit/ohne Jahr, `Season`/`Staffel`, ID-Format (`{tmdb-}`, `{tvdb-}`, `{imdb-}`), Episodentitel ja/nein.
-- [ ] **Mehrere Bibliotheken pro Typ** (z. B. „Filme“ und „Kinderfilme“), Import-Ziel wählbar.
+- [x] **Mehrere Bibliotheken pro Typ** – im Assistenten anhaken, je ein Standard für Filme und Serien, Ziel per Rechtsklick; Prüfung, Plex-Abgleich, Specials und Scan über alle.
 - [ ] **Weitere Fälle**: Anime mit absoluter Nummerierung, Filme mit Edition (`{edition-…}`), 3D, Extras-Ordner, mehrteilige Filme testen.
 
 ## 5. Sicherheit & Stabilität

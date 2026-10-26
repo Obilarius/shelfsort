@@ -8,10 +8,11 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 
 `ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten …** im Menü):
 
-1. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
-2. **Bei Plex anmelden** – die Anmeldung läuft auf plex.tv im Browser, ShelfSort bekommt nur den Zugangsschlüssel, nie das Passwort. Ohne Plex geht es auch („Ohne Plex weiter“), dann fehlen Scan, Plex-Abgleich und Specials-Check.
-3. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
-4. **Bibliotheken zuordnen** – Filme- und Serien-Bibliothek aus Plex wählen. ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien aus der Bibliothek.
+1. **Sprache** – App-Sprache (bisher Deutsch) und Sprache der Titel. Die Titelsprache sollte zur Sprache der Plex-Bibliotheken passen; die Übersicht am Ende weist auf Abweichungen hin.
+2. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
+3. **Bei Plex anmelden** – die Anmeldung läuft auf plex.tv im Browser, ShelfSort bekommt nur den Zugangsschlüssel, nie das Passwort. Ohne Plex geht es auch („Ohne Plex weiter“), dann fehlen Scan, Plex-Abgleich und Specials-Check.
+4. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
+5. **Bibliotheken wählen** – alle Film- und Serien-Bibliotheken aus Plex anhaken, die ShelfSort verwalten soll (z. B. „Filme“, „Disney“, „Serien“). ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien. Pro Typ ist eine Bibliothek **Standard** für neue Importe. Bibliotheken für eigene Videos („Andere Videos“) sind standardmäßig nicht angehakt.
 
 Unter **Einstellungen** lässt sich alles auch von Hand ändern (z. B. Mindestgröße für Videos, Sprache der Metadaten). Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
 
@@ -29,7 +30,8 @@ py -3.12 -m venv .venv
 | Film | `movies\F1 - Der Film (2025) {tmdb-911430}\F1 - Der Film (2025).mkv` |
 | Folge | `tvshows\Die wilden Siebziger {tmdb-52}\Season 05\Die wilden Siebziger - S05E04 - Die Wechseljahre.mkv` |
 
-- Bestehende Serienordner (per TMDB-ID erkannt) und Staffelordner (`Season 05` / `Staffel 13`) werden weiterverwendet.
+- Bestehende Film- und Serienordner (per TMDB-ID erkannt) werden weiterverwendet – in jeder verwalteten Bibliothek. Neue Folgen landen also bei ihrer Serie, auch wenn die in „Disney“ statt „Serien“ liegt. Neues kommt in die Standard-Bibliothek; per Rechtsklick → **Ziel-Bibliothek** lässt sich das für markierte Zeilen ändern.
+- Staffelordner (`Season 05` / `Staffel 13`) werden weiterverwendet.
 - Die Folgennummer kommt aus dem Dateinamen, der Folgentitel aus Plex: bei Serien in der Bibliothek in der dort eingestellten Reihenfolge (z. B. Doctor Who „TheTVDB (BBC iPlayer)“), bei neuen Serien in der Standard-Reihenfolge der Bibliothek – also so, wie Plex sie nach dem Import nummeriert. TMDB zählt manchmal anders (Bluey S03E49 ist dort ein Special). Nur ohne Plex-Token oder wenn Plex die Serie nicht kennt, kommt der Titel von TMDB.
 - Dateien mit Kürzel vor dem Titel (`abc-show.s03e02…`) werden über den Ordnernamen bzw. ohne Kürzel erkannt.
 - Untertitel (`Film.de.forced.srt`) wandern mit.

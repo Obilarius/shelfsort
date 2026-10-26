@@ -36,13 +36,15 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
     """only_shows: check just these show folders (e.g. after changing their ordering in Plex)."""
     plex_shows = {}
     if opts.shows and opts.plex_sync and catalog:
-        plex_shows = catalog.shows(lib.tv_root, progress)
+        plex_shows = catalog.shows(progress)
     jobs = []
     if (opts.movies or opts.empty) and only_shows is None:
-        jobs += [(d, audit_movie_dir) for d in list_dirs(lib.movies_root)]
+        for root in lib.movie_roots:
+            jobs += [(d, audit_movie_dir) for d in list_dirs(root)]
     if opts.shows or opts.empty:
         wanted = {str(p).lower() for p in only_shows} if only_shows is not None else None
-        jobs += [(d, audit_show_dir) for d in list_dirs(lib.tv_root) if wanted is None or str(d).lower() in wanted]
+        for root in lib.show_roots:
+            jobs += [(d, audit_show_dir) for d in list_dirs(root) if wanted is None or str(d).lower() in wanted]
     items: list[PlanItem] = []
     for i, (d, fn) in enumerate(jobs):
         if progress:

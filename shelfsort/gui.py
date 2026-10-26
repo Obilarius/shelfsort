@@ -222,13 +222,14 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.progress)
         self.setAcceptDrops(True)
 
-        if not (self.cfg.tmdb_key and self.cfg.movies_root and self.cfg.tv_root):
+        if not self.cfg.is_set_up:
             QTimer.singleShot(0, self.open_wizard)  # first start
 
     # --- tabs ---
 
     def _bases(self) -> list[Path]:
-        bases = [Path(self.cfg.movies_root).parent]
+        # show paths relative to the folder above the libraries ("movies\\…", "Disney\\…")
+        bases = list(dict.fromkeys(lib.path.parent for lib in self.cfg.libs))
         if self.import_root:
             bases.insert(0, self.import_root)
         return bases
@@ -311,11 +312,27 @@ class MainWindow(QMainWindow):
             row = table.rowAt(pos.y())
             if row < 0:
                 return
-            n = len(table.selected_rows()) if row in table.selected_rows() else 1
+            rows = table.selected_rows() if row in table.selected_rows() else [row]
+            n = len(rows)
             menu = QMenu(table)
             act = menu.addAction(f"Treffer für {n} Einträge wählen…" if n > 1 else "Anderen Treffer wählen…")
-            if menu.exec(table.viewport().mapToGlobal(pos)) == act:
+            targets = {}
+            if import_mode:
+                # move the selection into another library of the same kind (movies/shows)
+                items = [table.items[r] for r in rows if table.items[r].retarget]
+                kinds = {"movie" if it.kind == "movie" else "show" for it in items}
+                if len(kinds) == 1 and len(libs := self.cfg.libs_of(kinds.pop())) > 1:
+                    sub = menu.addMenu("Ziel-Bibliothek")
+                    for lib in libs:
+                        a = sub.addAction(lib.title + ("  (Standard)" if lib.default else ""))
+                        a.setCheckable(True)
+                        a.setChecked(all(it.library == lib.title for it in items))
+                        targets[a] = lib
+            chosen = menu.exec(table.viewport().mapToGlobal(pos))
+            if chosen == act:
                 self._rematch(table, row, import_mode)
+            elif chosen in targets:
+                self._retarget(table, rows, targets[chosen])
 
         table.customContextMenuRequested.connect(context_menu)
         split = QSplitter(Qt.Horizontal)
@@ -348,10 +365,9 @@ class MainWindow(QMainWindow):
         self.log_view.appendPlainText(text)
 
     def _services(self) -> tuple[TMDB, Library]:
-        if not self.cfg.movies_root or not self.cfg.tv_root:
-            raise RuntimeError("Bitte zuerst Filme- und Serien-Ordner in den Einstellungen festlegen.")
+        lib = Library.from_config(self.cfg)
         self.tmdb = TMDB(self.cfg.tmdb_key, self.cfg.language)
-        return self.tmdb, Library(Path(self.cfg.movies_root), Path(self.cfg.tv_root))
+        return self.tmdb, lib
 
     def _busy(self, on: bool, statusbar: bool = True) -> None:
         for b in (self.scan_btn, self.import_run, self.audit_btn, self.audit_run):
@@ -465,8 +481,7 @@ class MainWindow(QMainWindow):
         self.log(f"Scanne {root} …")
         min_bytes = self.cfg.min_video_mb * 1024 * 1024
         # episode titles of shows Plex already has follow the show's ordering in Plex
-        plex_eps = (PlexEpisodeSource(catalog_for(self.cfg),
-                                      lib.tv_root) if self.cfg.plex_token else None)
+        plex_eps = PlexEpisodeSource(catalog_for(self.cfg)) if self.cfg.plex_token else None
 
         def done(items):
             if plex_eps and plex_eps.error:
@@ -485,7 +500,6 @@ class MainWindow(QMainWindow):
         catalog = self._catalog()
         if not catalog:
             return
-        tv_root = Path(self.cfg.tv_root)
         self.log("Prüfe Specials und Episoden-Reihenfolgen …")
 
         def done(result):
@@ -496,7 +510,7 @@ class MainWindow(QMainWindow):
             self.log(f"{len(reports)} Serien mit Specials, bei {better} bringt eine andere Reihenfolge Specials in den Ablauf.")
             self.specials.set_reports(reports)
 
-        self.run_task(lambda w: specials_overview(catalog, tv_root, w.progress.emit), done)
+        self.run_task(lambda w: specials_overview(catalog, w.progress.emit), done)
 
     def apply_specials(self, chosen: list) -> None:
         if not chosen:
@@ -570,6 +584,21 @@ class MainWindow(QMainWindow):
             counts[it.status] = counts.get(it.status, 0) + 1
         summary = ", ".join(f"{n}× {STATUS.get(s, (s,))[0]}" for s, n in counts.items()) or "nichts zu tun"
         self.log(f"{len(items)} Einträge: {summary}")
+
+    def _retarget(self, table: PlanTable, rows: list[int], lib) -> None:
+        """Import the selected rows into another library."""
+        items = [table.items[r] for r in rows if table.items[r].retarget]
+        first_group, errors = items[0].group if items else None, []
+        for it in items:
+            try:
+                table.replace_group(it.group, it.retarget(lib.path))
+            except Exception as e:
+                errors.append(f"{it.source.name}: {e}")
+        if errors:
+            QMessageBox.warning(self, "Ziel-Bibliothek", "\n".join(errors[:10]))
+        new_row = next((i for i, x in enumerate(table.items) if x.group == first_group), 0)
+        table.selectRow(min(new_row, table.rowCount() - 1))
+        self.log(f"{len(items)} Einträge → Bibliothek „{lib.title}“")
 
     def _rematch(self, table: PlanTable, row: int, import_mode: bool) -> None:
         """Pick a TMDB match by hand - for the row, or for all selected rows at once."""

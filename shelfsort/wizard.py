@@ -4,13 +4,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QLocale, QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QVBoxLayout, QWidget, QWizard, QWizardPage)
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout,
+                               QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton, QVBoxLayout, QWidget,
+                               QWizard, QWizardPage)
 
 from . import plex_auth
-from .config import Config
+from .config import KINDS, METADATA_LANGUAGES, Config, LibraryConfig, language_name
 from .path_mapping import suggest, verify
 from .plex import Plex
 from .tmdb import TMDB
@@ -73,7 +74,60 @@ def _label(text: str = "", style: str = "") -> QLabel:
 
 # --- pages --------------------------------------------------------------------------------
 
-PAGE_TMDB, PAGE_PLEX, PAGE_SERVER, PAGE_LIBS, PAGE_DONE = range(5)
+PAGE_WELCOME, PAGE_TMDB, PAGE_PLEX, PAGE_SERVER, PAGE_LIBS, PAGE_DONE = range(6)
+
+APP_LANGUAGES = [("de", "Deutsch", True), ("en", "English – folgt", False)]
+
+
+def _same_language(a: str, b: str) -> bool:
+    return (a or "").split("-")[0].lower() == (b or "").split("-")[0].lower()
+
+
+class WelcomePage(QWizardPage):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.setTitle("Willkommen bei ShelfSort")
+        self.setSubTitle("Ein paar Schritte, dann kann es losgehen.")
+        system = QLocale.system().name().replace("_", "-")  # e.g. "de-DE"
+
+        self.app = QComboBox()
+        for code, name, available in APP_LANGUAGES:
+            self.app.addItem(name, code)
+            if not available:
+                self.app.model().item(self.app.count() - 1).setEnabled(False)
+        self.app.setCurrentIndex(max(0, self.app.findData(cfg.app_language or "de")))
+
+        self.meta = QComboBox()
+        for code, name in METADATA_LANGUAGES:
+            self.meta.addItem(f"{name}  ({code})", code)
+        current = cfg.language if cfg.is_set_up else system
+        self.set_metadata_language(current)
+
+        form = QFormLayout()
+        form.addRow("Sprache der App", self.app)
+        form.addRow("Sprache der Titel", self.meta)
+        lay = QVBoxLayout(self)
+        lay.addWidget(_label("ShelfSort benennt Filme und Serien so, wie Plex sie erwartet, verschiebt sie in deine "
+                             "Bibliothek und hält Folgennummern passend zur Reihenfolge in Plex."))
+        lay.addSpacing(8)
+        lay.addLayout(form)
+        lay.addWidget(_label("Die <b>Sprache der Titel</b> bestimmt Film-, Serien- und Folgentitel in den "
+                             "Dateinamen. Sie sollte zur Sprache deiner Plex-Bibliotheken passen – ShelfSort "
+                             "prüft das später und weist auf Abweichungen hin.", GRAY))
+        lay.addStretch()
+
+    def set_metadata_language(self, code: str) -> None:
+        idx = self.meta.findData(code)
+        if idx < 0:
+            idx = next((i for i in range(self.meta.count()) if _same_language(self.meta.itemData(i), code)), -1)
+        if idx < 0:
+            self.meta.addItem(code, code)
+            idx = self.meta.count() - 1
+        self.meta.setCurrentIndex(idx)
+
+    @property
+    def metadata_language(self) -> str:
+        return self.meta.currentData()
 
 
 class TmdbPage(QWizardPage):
@@ -308,70 +362,75 @@ class ServerPage(QWizardPage):
 
 
 class _LibraryRow:
-    """Plex library choice + local folder + check, for one kind (movies or shows)."""
+    """One library: managed yes/no, local folder (found automatically), default for its kind."""
 
-    def __init__(self, page: "LibrariesPage", kind: str, label: str, local: str, section_key: str):
-        self.page, self.kind = page, kind
-        self.combo = QComboBox()
-        self.combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    def __init__(self, page: "LibrariesPage", kind: str, title: str, section: dict | None,
+                 local: str, managed: bool, default: bool):
+        self.page, self.kind, self.title, self.section = page, kind, title, section
+        self.samples: list[str] = []
+        self.searched = False
+        self.check = QCheckBox(f"{title}" + (f"  ({', '.join(section['locations'])})" if section else ""))
+        self.check.setChecked(managed)
+        self.check.setEnabled(section is not None)  # without Plex both rows are required
+        self.check.toggled.connect(self._toggled)
+        self.kind_label = QLabel(KINDS[kind])
+        self.kind_label.setStyleSheet(GRAY)
+        self.default = QRadioButton("Standard")
+        self.default.setToolTip(f"Neue {KINDS[kind]} werden hierhin importiert.")
+        self.default.setChecked(default)
         self.path = QLineEdit(local)
         self.path.setPlaceholderText("Ordner auf diesem Computer")
         self.browse = QPushButton("…")
         self.browse.setFixedWidth(32)
         self.browse.clicked.connect(self._browse)
         self.status = _label("", GRAY)
-        self.label = QLabel(label)
-        self.section_key = section_key
-        self.sections: list[dict] = []
-        self.samples: list[str] = []
-        self.combo.currentIndexChanged.connect(self._section_changed)
         self.path.textChanged.connect(lambda _: self._verify())
+        page.groups[kind].addButton(self.default)
 
     def add_to(self, grid: QGridLayout, row: int) -> None:
-        grid.addWidget(self.label, row, 0)
-        grid.addWidget(self.combo, row, 1)
+        grid.addWidget(self.check, row, 0)
+        grid.addWidget(self.kind_label, row, 1)
         box = QWidget()
         h = QHBoxLayout(box)
         h.setContentsMargins(0, 0, 0, 0)
         h.addWidget(self.path, 1)
         h.addWidget(self.browse)
         grid.addWidget(box, row, 2)
-        grid.addWidget(self.status, row + 1, 1, 1, 2)
+        grid.addWidget(self.default, row, 3)
+        grid.addWidget(self.status, row + 1, 0, 1, 4)
+        self._toggled(self.check.isChecked())
 
-    def section(self) -> dict | None:
-        i = self.combo.currentIndex()
-        return self.sections[i] if 0 <= i < len(self.sections) else None
+    @property
+    def managed(self) -> bool:
+        return self.check.isChecked()
 
     def server_root(self) -> str:
-        s = self.section()
-        return s["locations"][0] if s and s["locations"] else ""
+        return self.section["locations"][0] if self.section and self.section["locations"] else ""
 
-    def set_sections(self, sections: list[dict]) -> None:
-        self.sections = [s for s in sections if s["type"] == self.kind]
-        self.combo.blockSignals(True)
-        self.combo.clear()
-        for s in self.sections:
-            self.combo.addItem(f"{s['title']}  ({', '.join(s['locations'])})")
-        # saved choice, else the library whose folder name matches the current local folder
-        local_name = Path(self.path.text().strip()).name.lower()
-        idx = next((i for i, s in enumerate(self.sections) if s["key"] == self.section_key), None)
-        if idx is None:
-            idx = next((i for i, s in enumerate(self.sections)
-                        if local_name and any(Plex._basename(l) == local_name for l in s["locations"])), 0)
-        self.combo.setCurrentIndex(idx)
-        self.combo.blockSignals(False)
-        self.combo.setVisible(True)
-        self._section_changed()
+    def _toggled(self, on: bool) -> None:
+        for w in (self.path, self.browse, self.default):
+            w.setEnabled(on)
+        if not on:
+            self.status.setText("")
+            if self.default.isChecked():
+                self.page.pick_default(self.kind)
+        elif not self.searched:
+            self.search()
+        else:
+            self._verify()
+        self.page.completeChanged.emit()
 
-    def _section_changed(self, _=None) -> None:
-        s, plex = self.section(), self.page.plex
-        if not s or not plex:
+    def search(self) -> None:
+        """Fetch sample files from Plex and find the folder on this computer (in the background)."""
+        plex = self.page.plex
+        self.searched = True
+        if not self.section or not plex:
+            self._verify()
             return
-        self.samples = []
+        s, root = self.section, self.server_root()
+        current = self.path.text().strip()  # read here: widgets only in the GUI thread
         self.status.setStyleSheet(GRAY)
         self.status.setText("Suche den Ordner auf diesem Computer …")
-        root = self.server_root()
-        current = self.path.text().strip()  # read here: widgets only in the GUI thread
 
         def work():
             samples = plex.sample_files(s)
@@ -380,8 +439,6 @@ class _LibraryRow:
             return samples, suggest(root, samples)
 
         def done(result):
-            if self.section() is not s:
-                return
             self.samples, guess = result
             if guess:
                 self.path.setText(str(guess.local_root))
@@ -394,7 +451,13 @@ class _LibraryRow:
         if d:
             self.path.setText(d.replace("/", "\\"))
 
+    def valid(self) -> bool:
+        p = self.path.text().strip()
+        return bool(p) and Path(p).is_dir()
+
     def _verify(self) -> None:
+        if not self.managed:
+            return
         local = self.path.text().strip()
         if not local:
             self.status.setText("Ordner fehlt.")
@@ -416,74 +479,162 @@ class _LibraryRow:
             self.status.setStyleSheet(GRAY)
         self.page.completeChanged.emit()
 
+    def to_config(self) -> LibraryConfig:
+        return LibraryConfig(self.kind, self.title, self.path.text().strip(),
+                             self.section["key"] if self.section else "", self.server_root(),
+                             self.default.isChecked())
+
 
 class LibrariesPage(QWizardPage):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
         self.plex: Plex | None = None
+        self.rows: list[_LibraryRow] = []
+        self.groups = {"movie": QButtonGroup(self), "show": QButtonGroup(self)}
         self.setTitle("Bibliotheken")
-        self.movies = _LibraryRow(self, "movie", "Filme", cfg.movies_root, cfg.movies_section)
-        self.shows = _LibraryRow(self, "show", "Serien", cfg.tv_root, cfg.tv_section)
         self.info = _label()
-        grid = QGridLayout()
-        grid.setColumnStretch(2, 1)
-        self.movies.add_to(grid, 0)
-        self.shows.add_to(grid, 2)
+        self.grid = QGridLayout()
+        self.grid.setColumnStretch(2, 1)
         lay = QVBoxLayout(self)
         lay.addWidget(self.info)
-        lay.addLayout(grid)
+        lay.addLayout(self.grid)
         lay.addStretch()
+
+    def _clear(self) -> None:
+        for row in self.rows:
+            for w in (row.check, row.kind_label, row.path.parentWidget(), row.default, row.status):
+                w.setParent(None)
+            self.groups[row.kind].removeButton(row.default)
+        self.rows = []
+
+    def _add(self, row: _LibraryRow) -> None:
+        row.add_to(self.grid, len(self.rows) * 2)
+        self.rows.append(row)
+
+    def pick_default(self, kind: str) -> None:
+        """Keep exactly one default per kind among the managed libraries."""
+        rows = [r for r in self.rows if r.kind == kind and r.managed]
+        if rows and not any(r.default.isChecked() for r in rows):
+            rows[0].default.setChecked(True)
 
     def initializePage(self) -> None:
         wiz = self.wizard()
         server_page: ServerPage = wiz.page(PAGE_SERVER)
         login: PlexLoginPage = wiz.page(PAGE_PLEX)
+        self._clear()
         use_plex = not login.skip.isChecked() and server_page.url and server_page.server()
-        for row in (self.movies, self.shows):
-            row.combo.setVisible(bool(use_plex))
         if not use_plex:
             self.plex = None
             self.setSubTitle("Wo liegen deine Filme und Serien?")
             self.info.setText("")
+            for kind in ("movie", "show"):
+                lib = self.cfg.default_lib(kind)
+                self._add(_LibraryRow(self, kind, KINDS[kind], None, lib.local_root if lib else "", True, True))
             return
-        self.setSubTitle("Welche Plex-Bibliothek ist welche – und wo liegt ihr Ordner auf diesem Computer?")
-        self.info.setText("ShelfSort sucht den passenden Ordner selbst und prüft ihn an echten Dateien aus Plex. "
-                          "Der Server kann einen anderen Pfad sehen (z. B. <i>/data/movies</i>) als dieser "
-                          "Computer (z. B. <i>X:\\Medien\\movies</i>).")
+        self.setSubTitle("Welche Plex-Bibliotheken soll ShelfSort verwalten – und wo liegen ihre Ordner?")
+        self.info.setText("ShelfSort sucht die Ordner selbst und prüft sie an echten Dateien aus Plex (der Server "
+                          "kann einen anderen Pfad sehen, z. B. <i>/data/movies</i>, als dieser Computer, z. B. "
+                          "<i>X:\\Medien\\movies</i>). Pro Typ ist eine Bibliothek <b>Standard</b> für neue Importe; "
+                          "neue Folgen vorhandener Serien landen immer bei ihrer Serie.")
         s = server_page.server()
         self.plex = Plex(server_page.url, s.access_token)
-        plex = self.plex
+        known = {lib.section_key: lib for lib in self.cfg.libs if lib.section_key}
+        by_folder = {Path(lib.local_root).name.lower(): lib for lib in self.cfg.libs}
 
         def loaded(sections):
-            self.movies.set_sections(sections)
-            self.shows.set_sections(sections)
+            for sec in sections:
+                if sec["type"] not in KINDS:
+                    continue
+                kind = "movie" if sec["type"] == "movie" else "show"
+                old = known.get(sec["key"]) or next(
+                    (by_folder[Plex._basename(l)] for l in sec["locations"] if Plex._basename(l) in by_folder), None)
+                personal = sec.get("agent", "").endswith(".none")  # e.g. "Andere Videos"
+                managed = old is not None if self.cfg.libs else not personal
+                self._add(_LibraryRow(self, kind, sec["title"], sec, old.local_root if old else "", managed,
+                                      bool(old and old.default)))
+            for kind in KINDS:
+                self.pick_default(kind)
+            self.completeChanged.emit()
 
-        run_async(self, plex.sections, loaded, lambda m: self.info.setText(f"Fehler: {m}"))
+        run_async(self, self.plex.sections, loaded, lambda m: self.info.setText(f"Fehler: {m}"))
+
+    def chosen(self) -> list[LibraryConfig]:
+        return [r.to_config() for r in self.rows if r.managed]
 
     def isComplete(self) -> bool:
-        return all(r.path.text().strip() and Path(r.path.text().strip()).is_dir() for r in (self.movies, self.shows))
+        managed = [r for r in self.rows if r.managed]
+        kinds = {r.kind for r in managed}
+        return kinds == {"movie", "show"} and all(r.valid() for r in managed)
 
 
 class DonePage(QWizardPage):
     def __init__(self):
         super().__init__()
         self.setTitle("Fertig")
+        self.setSubTitle("So ist ShelfSort eingerichtet. Mit „Fertig“ wird gespeichert.")
         self.summary = _label()
+        self.lang_hint = _label("", BAD)
+        self.lang_fix = QPushButton()
+        self.lang_fix.clicked.connect(self._adopt_language)
+        self._plex_language = ""
         lay = QVBoxLayout(self)
         lay.addWidget(self.summary)
+        lay.addWidget(self.lang_hint)
+        lay.addWidget(self.lang_fix, 0, Qt.AlignLeft)
         lay.addStretch()
+        lay.addWidget(_label("Alles lässt sich später über <i>Einrichten …</i> im Menü ändern.", GRAY))
+
+    @staticmethod
+    def _section(title: str, body: str) -> str:
+        return (f'<p style="margin-top:12px; margin-bottom:2px"><span style="color:gray">{title.upper()}</span></p>'
+                f"{body}")
 
     def initializePage(self) -> None:
         wiz = self.wizard()
+        welcome: WelcomePage = wiz.page(PAGE_WELCOME)
         libs: LibrariesPage = wiz.page(PAGE_LIBS)
         server: ServerPage = wiz.page(PAGE_SERVER)
-        lines = [f"<b>Filme:</b> {libs.movies.path.text()}", f"<b>Serien:</b> {libs.shows.path.text()}"]
+        meta = welcome.metadata_language
+        html = []
+
         if libs.plex and server.server():
-            lines.insert(0, f"<b>Plex-Server:</b> {server.server().name} ({server.url})")
-        lines.append("<br>Alles lässt sich später unter <i>Einstellungen</i> ändern oder mit dem Assistenten "
-                     "neu einrichten.")
-        self.summary.setText("<br>".join(lines))
+            html.append(self._section("Plex", f"<b>{server.server().name}</b> &nbsp;·&nbsp; {server.url}"))
+        else:
+            html.append(self._section("Plex", "nicht verbunden – Scan, Plex-Abgleich und Specials-Check sind aus"))
+        html.append(self._section("Sprache", f"App: <b>{welcome.app.currentText()}</b> &nbsp;·&nbsp; "
+                                             f"Titel: <b>{language_name(meta)}</b>"))
+
+        rows = []
+        for row in (r for r in libs.rows if r.managed):
+            lib = row.to_config()
+            lang = (row.section or {}).get("language", "")
+            lang_cell = language_name(lang) if lang and lang != "xn" else "–"
+            rows.append(f"<tr><td><b>{lib.title}</b></td><td>{KINDS[lib.kind]}</td>"
+                        f"<td>{'✓ Standard' if lib.default else ''}</td><td>{lib.local_root}</td>"
+                        f"<td>{lang_cell}</td></tr>")
+        table = ('<table cellspacing="0" cellpadding="4" width="100%">'
+                 '<tr style="color:gray"><td>Bibliothek</td><td>Typ</td><td>Neue Importe</td><td>Ordner</td>'
+                 '<td>Sprache in Plex</td></tr>' + "".join(rows) + "</table>")
+        html.append(self._section("Bibliotheken", table))
+        self.summary.setText("".join(html))
+
+        # titles should be in the language the Plex libraries use, else names and Plex disagree
+        plex_langs = {(r.section or {}).get("language", "") for r in libs.rows if r.managed}
+        plex_langs = {l for l in plex_langs if l and l != "xn"}
+        other = next((l for l in sorted(plex_langs) if not _same_language(l, meta)), None)
+        self._plex_language = other or ""
+        self.lang_hint.setVisible(bool(other))
+        self.lang_fix.setVisible(bool(other))
+        if other:
+            self.lang_hint.setText(f"Deine Plex-Bibliotheken nutzen <b>{language_name(other)}</b>, die Titel sind "
+                                   f"auf <b>{language_name(meta)}</b> eingestellt. Dann heißen Dateien anders als "
+                                   f"Plex sie anzeigt.")
+            self.lang_fix.setText(f"Titel auf {language_name(other)} umstellen")
+
+    def _adopt_language(self) -> None:
+        self.wizard().page(PAGE_WELCOME).set_metadata_language(self._plex_language)
+        self.initializePage()
 
 
 class SetupWizard(QWizard):
@@ -492,7 +643,8 @@ class SetupWizard(QWizard):
         self.cfg = cfg
         self.setWindowTitle("ShelfSort einrichten")
         self.setWizardStyle(QWizard.ModernStyle)
-        self.resize(760, 520)
+        self.resize(860, 580)
+        self.setPage(PAGE_WELCOME, WelcomePage(cfg))
         self.setPage(PAGE_TMDB, TmdbPage(cfg))
         self.setPage(PAGE_PLEX, PlexLoginPage(cfg))
         self.setPage(PAGE_SERVER, ServerPage(cfg))
@@ -505,22 +657,19 @@ class SetupWizard(QWizard):
 
     def accept(self) -> None:
         c = self.cfg
+        welcome: WelcomePage = self.page(PAGE_WELCOME)
+        c.app_language = welcome.app.currentData()
+        c.language = welcome.metadata_language
         c.tmdb_key = self.page(PAGE_TMDB).key.text().strip()
         login: PlexLoginPage = self.page(PAGE_PLEX)
         libs: LibrariesPage = self.page(PAGE_LIBS)
         server: ServerPage = self.page(PAGE_SERVER)
-        c.movies_root = libs.movies.path.text().strip()
-        c.tv_root = libs.shows.path.text().strip()
+        c.set_libs(libs.chosen())
         if libs.plex and not login.skip.isChecked():
             c.plex_token = server.server().access_token
             c.plex_url = server.url
             c.plex_server_name = server.server().name
-            for row, prefix in ((libs.movies, "movies"), (libs.shows, "tv")):
-                s = row.section()
-                setattr(c, f"{prefix}_section", s["key"] if s else "")
-                setattr(c, f"{prefix}_server_root", row.server_root())
         else:
             c.plex_token = c.plex_url = c.plex_server_name = ""
-            c.movies_section = c.movies_server_root = c.tv_section = c.tv_server_root = ""
         c.save()
         super().accept()

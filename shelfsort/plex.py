@@ -41,6 +41,8 @@ class Plex:
         data = self._get("/library/sections").get("MediaContainer", {})
         return [
             {"key": d["key"], "title": d.get("title", ""), "type": d.get("type", ""),
+             "agent": d.get("agent", ""),  # ".none" agents: personal videos without online metadata
+             "language": d.get("language", ""),  # metadata language of the library, e.g. "de-DE"
              "locations": [loc["path"] for loc in d.get("Location", [])]}
             for d in data.get("Directory", [])
         ]

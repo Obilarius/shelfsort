@@ -41,6 +41,9 @@ class PlanItem:
     # Re-plan with a manual match; returns the replacement items for this group.
     replan: Callable[[Override], list["PlanItem"]] | None = None
     dialog_kind: str = "movie"  # what the match dialog searches for
+    library: str = ""  # title of the library the target lies in
+    # Import only: re-plan into another library of the same kind (local root folder)
+    retarget: Callable[[Path], list["PlanItem"]] | None = None
     episode_info: dict | None = None  # TMDB episode (name, overview, still_path) for the details panel
 
     def add_note(self, text: str) -> None:

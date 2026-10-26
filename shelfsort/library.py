@@ -1,4 +1,4 @@
-"""Index of the existing Plex library folders."""
+"""Index of the existing library folders (all movie and show libraries ShelfSort manages)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,26 +15,57 @@ def list_dirs(root: Path) -> list[Path]:
 
 
 class Library:
-    def __init__(self, movies_root: Path, tv_root: Path):
+    """movies_root/tv_root are the defaults for new imports; movie_roots/show_roots are all libraries.
+
+    Existing movies/shows are found in any library, so new episodes join their show wherever it lives.
+    """
+
+    def __init__(self, movies_root: Path, tv_root: Path,
+                 movie_roots: list[Path] | None = None, show_roots: list[Path] | None = None,
+                 titles: dict[str, str] | None = None):
         self.movies_root = movies_root
         self.tv_root = tv_root
+        self.movie_roots = movie_roots or [movies_root]
+        self.show_roots = show_roots or [tv_root]
+        self.titles = titles or {}  # str(root).lower() -> library title, for notes
         self.movie_by_id: dict[int, Path] = {}
         self.movie_by_title: dict[str, list[Path]] = {}
         self.show_by_id: dict[int, Path] = {}
         self.show_by_title: dict[str, list[Path]] = {}
         self.refresh()
 
+    @classmethod
+    def from_config(cls, cfg) -> "Library":
+        movie, show = cfg.default_lib("movie"), cfg.default_lib("show")
+        if not movie or not show:
+            raise RuntimeError("Bitte zuerst eine Filme- und eine Serien-Bibliothek einrichten (Menü „Einrichten …“).")
+        return cls(movie.path, show.path, [lib.path for lib in cfg.libs_of("movie")],
+                   [lib.path for lib in cfg.libs_of("show")],
+                   {str(lib.path).lower(): lib.title for lib in cfg.libs})
+
     def refresh(self) -> None:
         self.movie_by_id.clear(); self.movie_by_title.clear()
         self.show_by_id.clear(); self.show_by_title.clear()
-        for d in list_dirs(self.movies_root):
-            if (i := tmdb_id_of(d.name)) is not None:
-                self.movie_by_id[i] = d
-            self.movie_by_title.setdefault(norm(title_of(d.name)), []).append(d)
-        for d in list_dirs(self.tv_root):
-            if (i := tmdb_id_of(d.name)) is not None:
-                self.show_by_id[i] = d
-            self.show_by_title.setdefault(norm(title_of(d.name)), []).append(d)
+        for root in self.movie_roots:
+            for d in list_dirs(root):
+                if (i := tmdb_id_of(d.name)) is not None:
+                    self.movie_by_id.setdefault(i, d)
+                self.movie_by_title.setdefault(norm(title_of(d.name)), []).append(d)
+        for root in self.show_roots:
+            for d in list_dirs(root):
+                if (i := tmdb_id_of(d.name)) is not None:
+                    self.show_by_id.setdefault(i, d)
+                self.show_by_title.setdefault(norm(title_of(d.name)), []).append(d)
+
+    @property
+    def all_roots(self) -> list[Path]:
+        return [*self.movie_roots, *self.show_roots]
+
+    def root_of(self, path: Path) -> Path | None:
+        return next((r for r in self.all_roots if r == path or r in path.parents), None)
+
+    def title(self, root: Path) -> str:
+        return self.titles.get(str(root).lower(), root.name)
 
     @staticmethod
     def display_name(show_dir: Path) -> str:
