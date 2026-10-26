@@ -10,6 +10,7 @@ from .i18n import N_, tr
 from .naming import episode_code
 from .plan import PlanItem
 from .posters import PosterLoader
+from .reveal import main_video
 
 POSTER = QSize(130, 195)
 STILL = QSize(300, 169)
@@ -25,6 +26,8 @@ def _date_de(d: str) -> str:
 
 class DetailsPanel(QScrollArea):
     rematch_requested = Signal()
+    show_requested = Signal()  # open the file manager at the file
+    play_requested = Signal()  # play the video with the default player
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,6 +75,16 @@ class DetailsPanel(QScrollArea):
         self.note = label()
         self.rematch = QPushButton(tr("Anderen Treffer wählen…"))
         self.rematch.clicked.connect(self.rematch_requested)
+        self.show_btn = QPushButton(tr("Im Ordner zeigen"))
+        self.show_btn.clicked.connect(self.show_requested)
+        self.play_btn = QPushButton(tr("Video abspielen"))
+        self.play_btn.clicked.connect(self.play_requested)
+        self.file_buttons = QWidget()
+        fb = QHBoxLayout(self.file_buttons)
+        fb.setContentsMargins(0, 0, 0, 0)
+        fb.addWidget(self.show_btn)
+        fb.addWidget(self.play_btn)
+        fb.addStretch()
         self.empty = label(style="color: gray")
 
         head_text = QVBoxLayout()
@@ -93,7 +106,7 @@ class DetailsPanel(QScrollArea):
         for w in (self.ep_header, self.still, self.ep_overview):
             lay.addWidget(w)
         lay.addSpacing(10)
-        for w in (self.source, self.note, self.rematch, self.empty):
+        for w in (self.source, self.file_buttons, self.note, self.rematch, self.empty):
             lay.addWidget(w)
         lay.addStretch()
         self.setWidget(body)
@@ -103,7 +116,7 @@ class DetailsPanel(QScrollArea):
         """Several rows selected: offer one match for all of them."""
         self._current = None
         for w in (self.kind, self.poster, self.title, self.meta, self.link, self.overview,
-                  self.ep_header, self.still, self.ep_overview, self.source, self.note):
+                  self.ep_header, self.still, self.ep_overview, self.source, self.file_buttons, self.note):
             w.setVisible(False)
         self.empty.setVisible(True)
         self.empty.setText(tr("{count} Einträge ausgewählt.\nEin Treffer für alle – jede Datei behält ihre "
@@ -122,6 +135,9 @@ class DetailsPanel(QScrollArea):
         for w in (self.ep_header, self.still, self.ep_overview):
             w.setVisible(info is not None)
         self.source.setVisible(it is not None)
+        self.file_buttons.setVisible(it is not None)
+        if it is not None:
+            self.play_btn.setEnabled(main_video(it.source) is not None)
         self.note.setVisible(bool(it and it.note))
         self.rematch.setVisible(bool(it and it.replan))
         self.empty.setVisible(it is None or m is None)
@@ -129,7 +145,8 @@ class DetailsPanel(QScrollArea):
         if it is None:
             self.empty.setText(tr("Zeile auswählen, um den Treffer zu sehen."))
             return
-        self.source.setText(tr("Datei: {name}", name=it.source.name))
+        self.source.setText(tr("Ordner: {name}", name=it.source.name) if it.source.is_dir()
+                            else tr("Datei: {name}", name=it.source.name))
         self.note.setText(it.note)
         if m is None:
             self.empty.setText(tr("Kein TMDB-Treffer zugeordnet.") if it.replan else

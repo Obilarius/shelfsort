@@ -226,3 +226,15 @@ def test_audit_show_folder_rename_remaps_episodes(lib_dirs):
     assert renamed
     assert (tv / "Doctor Who {tmdb-57243}" / "Season 13" /
             "Doctor Who - S13E01 - Kapitel Eins - Die Halloween-Apokalypse.mkv").exists()
+
+
+def test_main_video_for_rows(tmp_path):
+    from shelfsort.reveal import main_video
+    movie = tmp_path / "A Movie (2020)"
+    video = touch(movie / "a.mkv")
+    touch(movie / "a.de.srt")
+    touch(movie / "Sample" / "a-sample.mkv")
+    assert main_video(video) == video                 # a file row
+    assert main_video(movie) == video                 # a folder row (audit): the main video, not the sample
+    assert main_video(movie / "a.de.srt") is None     # not a video
+    assert main_video(tmp_path / "missing") is None

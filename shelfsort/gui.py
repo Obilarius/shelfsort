@@ -27,6 +27,7 @@ from .library import Library
 from .plan import Override, PlanItem
 from .plex import Plex
 from .plex_sync import PlexCatalog, PlexEpisodeSource, catalog_for, specials_overview
+from .reveal import main_video, play as play_video, show_in_folder
 from .specials_tab import SpecialsTab
 from .tmdb import TMDB
 from .transfer_panel import TransferPanel
@@ -341,6 +342,8 @@ class MainWindow(QMainWindow):
 
         table.itemSelectionChanged.connect(selection_changed)
         details.rematch_requested.connect(lambda: self._rematch(table, table.currentRow(), import_mode))
+        details.show_requested.connect(lambda: self._show_file(table, table.currentRow()))
+        details.play_requested.connect(lambda: self._play_file(table, table.currentRow()))
 
         # right-click: same action, works with a multi-row selection
         table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -365,11 +368,20 @@ class MainWindow(QMainWindow):
                         a.setCheckable(True)
                         a.setChecked(all(it.library == lib.title for it in items))
                         targets[a] = lib
+            # look at the file itself (e.g. "2 videos in the folder" or unsure which movie it is)
+            menu.addSeparator()
+            show = menu.addAction(tr("Im Ordner zeigen"))
+            play = menu.addAction(tr("Video abspielen"))
+            play.setEnabled(main_video(table.items[row].source) is not None)
             chosen = menu.exec(table.viewport().mapToGlobal(pos))
             if chosen == act:
                 self._rematch(table, row, import_mode)
             elif chosen in targets:
                 self._retarget(table, rows, targets[chosen])
+            elif chosen == show:
+                self._show_file(table, row)
+            elif chosen == play:
+                self._play_file(table, row)
 
         table.customContextMenuRequested.connect(context_menu)
         split = QSplitter(Qt.Horizontal)
@@ -661,6 +673,14 @@ class MainWindow(QMainWindow):
             counts[it.status] = counts.get(it.status, 0) + 1
         summary = ", ".join(f"{n}× {tr(STATUS.get(s, (s,))[0])}" for s, n in counts.items()) or tr("nichts zu tun")
         self.log(tr("{n} Einträge: {summary}", n=len(items), summary=summary))
+
+    def _show_file(self, table: PlanTable, row: int) -> None:
+        if 0 <= row < len(table.items):
+            show_in_folder(table.items[row].source)
+
+    def _play_file(self, table: PlanTable, row: int) -> None:
+        if 0 <= row < len(table.items) and not play_video(table.items[row].source):
+            QMessageBox.information(self, tr("Video abspielen"), tr("Hier gibt es kein Video zum Abspielen."))
 
     def _retarget(self, table: PlanTable, rows: list[int], lib) -> None:
         """Import the selected rows into another library."""
