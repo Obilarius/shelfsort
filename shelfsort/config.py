@@ -4,8 +4,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import uuid
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
+
+from .plex import LibraryMap
 
 _APPDATA = Path(os.environ.get("APPDATA", Path.home()))
 CONFIG_PATH = _APPDATA / "ShelfSort" / "config.json"
@@ -22,6 +25,13 @@ class Config:
     tv_root: str = ""
     min_video_mb: int = 100
     last_import_dir: str = ""
+    # set by the setup wizard: which Plex server/libraries, and where their folders are on the server
+    client_id: str = ""  # identifies this ShelfSort installation at plex.tv
+    plex_server_name: str = ""
+    movies_section: str = ""
+    movies_server_root: str = ""
+    tv_section: str = ""
+    tv_server_root: str = ""
 
     @classmethod
     def load(cls) -> "Config":
@@ -42,3 +52,13 @@ class Config:
     @property
     def roots(self) -> list[Path]:
         return [Path(self.movies_root), Path(self.tv_root)]
+
+    def library_maps(self) -> list[LibraryMap]:
+        return [LibraryMap(Path(self.movies_root), self.movies_section or None, self.movies_server_root or None),
+                LibraryMap(Path(self.tv_root), self.tv_section or None, self.tv_server_root or None)]
+
+    def ensure_client_id(self) -> str:
+        if not self.client_id:
+            self.client_id = str(uuid.uuid4())
+            self.save()
+        return self.client_id

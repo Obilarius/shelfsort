@@ -24,10 +24,11 @@ from .importer import build_import_plan
 from .library import Library
 from .plan import Override, PlanItem
 from .plex import Plex
-from .plex_sync import PlexCatalog, PlexEpisodeSource, specials_overview
+from .plex_sync import PlexCatalog, PlexEpisodeSource, catalog_for, specials_overview
 from .specials_tab import SpecialsTab
 from .tmdb import TMDB
 from .transfer_panel import TransferPanel
+from .wizard import SetupWizard
 
 STATUS = {
     "ok": ("Bereit", QColor(46, 160, 67, 70)),
@@ -179,6 +180,9 @@ class MainWindow(QMainWindow):
         settings = QAction("Einstellungen", self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
+        setup = QAction("Einrichten …", self)
+        setup.triggered.connect(self.open_wizard)
+        self.menuBar().addAction(setup)
         about = QAction("Über", self)
         about.triggered.connect(lambda: show_about(self))
         self.menuBar().addAction(about)
@@ -219,7 +223,7 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
 
         if not (self.cfg.tmdb_key and self.cfg.movies_root and self.cfg.tv_root):
-            QTimer.singleShot(0, self.open_settings)
+            QTimer.singleShot(0, self.open_wizard)  # first start
 
     # --- tabs ---
 
@@ -423,6 +427,10 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         SettingsDialog(self.cfg, self).exec()
 
+    def open_wizard(self) -> None:
+        if SetupWizard(self.cfg, self).exec():
+            self.log("Einrichtung gespeichert.")
+
     def _browse(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Download-Ordner wählen", self.folder.text())
         if d:
@@ -457,7 +465,7 @@ class MainWindow(QMainWindow):
         self.log(f"Scanne {root} …")
         min_bytes = self.cfg.min_video_mb * 1024 * 1024
         # episode titles of shows Plex already has follow the show's ordering in Plex
-        plex_eps = (PlexEpisodeSource(PlexCatalog(Plex(self.cfg.plex_url, self.cfg.plex_token), self.cfg.language),
+        plex_eps = (PlexEpisodeSource(catalog_for(self.cfg),
                                       lib.tv_root) if self.cfg.plex_token else None)
 
         def done(items):
@@ -471,7 +479,7 @@ class MainWindow(QMainWindow):
         if not self.cfg.plex_token:
             QMessageBox.warning(self, "Plex", "Kein Plex-Token in den Einstellungen.")
             return None
-        return PlexCatalog(Plex(self.cfg.plex_url, self.cfg.plex_token), self.cfg.language)
+        return catalog_for(self.cfg)
 
     def scan_specials(self) -> None:
         catalog = self._catalog()
@@ -522,7 +530,7 @@ class MainWindow(QMainWindow):
             for rep, opt in chosen:
                 catalog.set_ordering(rep.show, opt.value)
                 w.log.emit(f"Plex: {rep.show.title} → {opt.label}")
-            fresh = PlexCatalog(Plex(cfg.plex_url, cfg.plex_token), cfg.language)
+            fresh = catalog_for(cfg)
             return build_audit_plan(tmdb, lib, AuditOptions(movies=False, empty=False, plex_sync=True),
                                     w.progress.emit, fresh, only_shows={rep.show.local_dir for rep, _ in chosen})
 
@@ -547,7 +555,7 @@ class MainWindow(QMainWindow):
             if not self.cfg.plex_token:
                 QMessageBox.warning(self, "Plex-Abgleich", "Kein Plex-Token in den Einstellungen.")
                 return
-            catalog = PlexCatalog(Plex(self.cfg.plex_url, self.cfg.plex_token), self.cfg.language)
+            catalog = catalog_for(self.cfg)
         self.log("Prüfe Bibliothek …")
         self.run_task(lambda w: build_audit_plan(tmdb, lib, opts, w.progress.emit, catalog),
                       lambda items: self._show(self.audit_table, items))
@@ -636,7 +644,7 @@ class MainWindow(QMainWindow):
             changed, renamed = execute(table.items, rep, cfg.roots)
             if changed and cfg.plex_token:
                 try:
-                    for msg in Plex(cfg.plex_url, cfg.plex_token).refresh(changed, cfg.roots, full=renamed):
+                    for msg in Plex(cfg.plex_url, cfg.plex_token).refresh(changed, cfg.library_maps(), full=renamed):
                         w.log.emit(msg)
                 except Exception as e:
                     w.log.emit(f"Plex-Scan fehlgeschlagen: {e}")

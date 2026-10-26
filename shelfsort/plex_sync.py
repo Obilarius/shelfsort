@@ -122,8 +122,11 @@ def _parse_enum(enum: str) -> list[tuple[str, str]]:
 
 
 class PlexCatalog:
-    def __init__(self, plex: Plex, language: str = "de-DE"):
+    def __init__(self, plex: Plex, language: str = "de-DE", tv_section: str | None = None,
+                 tv_server_root: str | None = None):
         self.plex = plex
+        self.tv_section = tv_section
+        self.tv_server_root = tv_server_root
         self.lang = language.split("-")[0]
         self.s = requests.Session()
         self.s.headers.update({"X-Plex-Token": plex.token, "Accept": "application/json",
@@ -149,12 +152,22 @@ class PlexCatalog:
                 return items
 
     def _section(self, tv_root: Path) -> dict:
-        section = next((s for s in self.plex.sections()
-                        if s["type"] == "show" and any(Plex._basename(l) == tv_root.name.lower()
-                                                       for l in s["locations"])), None)
+        sections = self.plex.sections()
+        if self.tv_section:  # chosen in the setup wizard
+            section = next((s for s in sections if s["key"] == self.tv_section), None)
+        else:  # older configs: library whose folder has the same name
+            section = next((s for s in sections
+                            if s["type"] == "show" and any(Plex._basename(l) == tv_root.name.lower()
+                                                           for l in s["locations"])), None)
         if not section:
-            raise RuntimeError(f"Keine Plex-Serienbibliothek mit Ordner „{tv_root.name}“ gefunden.")
+            raise RuntimeError(f"Keine Plex-Serienbibliothek für „{tv_root}“ gefunden – bitte im "
+                               f"Einrichtungsassistenten zuordnen.")
         return section
+
+    def _bases(self, section: dict) -> list[str]:
+        """Server-side library folders whose content lives under the local tv_root."""
+        roots = [self.tv_server_root] if self.tv_server_root else section["locations"]
+        return [r.replace("\\", "/").rstrip("/") for r in roots]
 
     def library_ordering(self, tv_root: Path, section: dict | None = None) -> str:
         """Ordering a show gets in this library unless it has its own setting."""
@@ -193,8 +206,7 @@ class PlexCatalog:
                 own = meta.get("showOrdering") or pref.get("value") or None
                 for loc in meta.get("Location", []):
                     path = loc["path"].replace("\\", "/").rstrip("/")
-                    for sec_loc in section["locations"]:
-                        base = sec_loc.replace("\\", "/").rstrip("/")
+                    for base in self._bases(section):
                         if path.lower().startswith(base.lower() + "/"):
                             local = tv_root.joinpath(*path[len(base) + 1:].split("/"))
                             out[str(local).lower()] = PlexShow(
@@ -379,3 +391,9 @@ def season_offsets(files: list[tuple[int, int, str]], episodes: list[PlexEpisode
         if ds.count(common) >= 2:
             out[season] = common
     return out
+
+
+def catalog_for(cfg) -> PlexCatalog:
+    """Catalog for the configured server and TV library."""
+    return PlexCatalog(Plex(cfg.plex_url, cfg.plex_token), cfg.language, cfg.tv_section or None,
+                       cfg.tv_server_root or None)

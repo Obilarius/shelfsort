@@ -6,16 +6,14 @@ Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet,
 
 ## Start
 
-`ShelfSort.bat` doppelklicken. Beim ersten Start öffnen sich die Einstellungen:
+`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einrichten …** im Menü):
 
-| Einstellung | Wofür |
-|---|---|
-| TMDB API-Key / Token | Titel, Jahr, ID, Cover (themoviedb.org → Einstellungen → API) |
-| Plex-URL, Plex-Token | Scan nach dem Übertragen, Plex-Abgleich, Folgentitel in Plex-Reihenfolge. Ohne Token läuft alles außer diesen Funktionen. |
-| Filme-/Serien-Ordner | Bibliothek, z. B. `D:\Medien\Filme` und `D:\Medien\Serien` |
-| Videos ignorieren unter | Mindestgröße, filtert Samples und Reste |
+1. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
+2. **Bei Plex anmelden** – die Anmeldung läuft auf plex.tv im Browser, ShelfSort bekommt nur den Zugangsschlüssel, nie das Passwort. Ohne Plex geht es auch („Ohne Plex weiter“), dann fehlen Scan, Plex-Abgleich und Specials-Check.
+3. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
+4. **Bibliotheken zuordnen** – Filme- und Serien-Bibliothek aus Plex wählen. ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien aus der Bibliothek.
 
-„Verbindung testen“ prüft TMDB und Plex. Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
+Unter **Einstellungen** lässt sich alles auch von Hand ändern (z. B. Mindestgröße für Videos, Sprache der Metadaten). Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json`, nicht im Repo.
 
 Einrichtung auf einem neuen Rechner:
 

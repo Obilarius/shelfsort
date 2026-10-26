@@ -16,11 +16,13 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 2. Einrichtung ohne Bastelei
 
-- [ ] **Plex-Login per PIN** (`plex.tv/link`) statt Token aus der XML kopieren.
-- [ ] **Server automatisch finden** (Liste der Server des Accounts über plex.tv), Auswahl falls mehrere.
-- [ ] **Bibliotheken aus Plex auswählen** statt Ordnerpfade eintippen.
-- [ ] **Pfad-Zuordnung** lokal ↔ Server (`X:\plex_media\movies` ↔ `/data/movies`), mit Vorschlag und Test – die jetzige Zuordnung über gleiche Ordnernamen passt nicht bei jedem.
-- [ ] **Einrichtungs-Assistent** beim ersten Start (TMDB-Key, Plex-Login, Bibliotheken, Sprache).
+- [x] **Plex-Login per PIN** – offizieller Ablauf über app.plex.tv im Browser (`plex_auth.py`).
+- [x] **Server automatisch finden** – Server des Kontos über plex.tv, erste erreichbare Adresse (lokal vor remote).
+- [x] **Bibliotheken aus Plex auswählen** – Filme/Serien-Bibliothek im Assistenten; Scan und Plex-Abgleich nutzen die gewählte Bibliothek statt gleicher Ordnernamen.
+- [x] **Pfad-Zuordnung** lokal ↔ Server – automatischer Vorschlag, geprüft an Beispieldateien aus Plex (`path_mapping.py`).
+- [x] **Einrichtungs-Assistent** beim ersten Start und über „Einrichten …“.
+- [ ] **PIN-Anmeldung einmal komplett von Hand testen** (Browser-Schritt lässt sich nicht automatisch testen).
+- [ ] *Optional:* Sprache der Metadaten im Assistenten wählen (jetzt nur in den Einstellungen).
 
 ## 3. Installation & Updates
 
