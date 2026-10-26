@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFile
                                QTabWidget, QVBoxLayout, QWidget)
 
 from .audit import AuditOptions, build_audit_plan
-from .config import Config
+from .config import KINDS, Config
 from .details import DetailsPanel
 from .dialogs import SettingsDialog, show_about
 from .match_dialog import MatchDialog
@@ -258,9 +258,40 @@ class MainWindow(QMainWindow):
         lay.addLayout(self._action_row(self.import_table, self.import_run))
         return w
 
+    def _fill_library_checks(self) -> None:
+        """One checkbox per managed library (rebuilt after the setup wizard)."""
+        while self.lib_checks_box.count():
+            w = self.lib_checks_box.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        self.lib_checks: list[tuple[QCheckBox, object]] = []
+        label = QLabel("Bibliotheken:")
+        label.setStyleSheet("color: gray")
+        self.lib_checks_box.addWidget(label)
+        for lib in self.cfg.libs:
+            name = lib.title if lib.title == KINDS[lib.kind] else f"{lib.title} ({KINDS[lib.kind]})"
+            cb = QCheckBox(name)
+            cb.setToolTip(str(lib.path))
+            cb.setChecked(True)
+            cb.toggled.connect(lambda _: self._update_audit_options())
+            self.lib_checks_box.addWidget(cb)
+            self.lib_checks.append((cb, lib))
+        self.lib_checks_box.addStretch()
+        self._update_audit_options()
+
+    def _checked_libs(self) -> list:
+        return [lib for cb, lib in self.lib_checks if cb.isChecked()]
+
+    def _update_audit_options(self) -> None:
+        # the Plex sync is about episodes - only useful with a TV library selected
+        has_shows = any(lib.kind == "show" for lib in self._checked_libs())
+        self.opt_plex.setEnabled(has_shows)
+        self.opt_titles.setEnabled(has_shows)
+        self.audit_btn.setEnabled(bool(self._checked_libs()) and self._thread is None)
+
     def _build_audit_tab(self) -> QWidget:
-        self.opt_movies = QCheckBox("Filme")
-        self.opt_shows = QCheckBox("Serien")
+        self.lib_checks_box = QHBoxLayout()
+        self.lib_checks: list = []
         self.opt_empty = QCheckBox("Leere Ordner")
         self.opt_plex = QCheckBox("Plex-Abgleich (Folgennummern)")
         self.opt_plex.setToolTip("Vergleicht jede Folge mit der Reihenfolge, die in Plex für die Serie eingestellt ist\n"
@@ -268,15 +299,21 @@ class MainWindow(QMainWindow):
         self.opt_titles = QCheckBox("Episodentitel übernehmen")
         self.opt_titles.setToolTip("Aus: nur Struktur prüfen (Ordner, SxxEyy, Staffelordner), vorhandene Titel bleiben.\n"
                                    "An: Titel jeder Folge mit TMDB abgleichen (langsamer, viele Änderungen).")
-        for cb in (self.opt_movies, self.opt_shows, self.opt_empty):
-            cb.setChecked(True)
+        self.opt_empty.setChecked(True)
         self.audit_btn = QPushButton("Bibliothek prüfen")
         self.audit_btn.clicked.connect(self.scan_audit)
-        top = QHBoxLayout()
-        for cb in (self.opt_movies, self.opt_shows, self.opt_empty, self.opt_plex, self.opt_titles):
-            top.addWidget(cb)
-        top.addStretch()
-        top.addWidget(self.audit_btn)
+        options = QHBoxLayout()
+        options_label = QLabel("Prüfen:")
+        options_label.setStyleSheet("color: gray")
+        options.addWidget(options_label)
+        for cb in (self.opt_empty, self.opt_plex, self.opt_titles):
+            options.addWidget(cb)
+        options.addStretch()
+        options.addWidget(self.audit_btn)
+        top = QVBoxLayout()
+        top.addLayout(self.lib_checks_box)
+        top.addLayout(options)
+        self._fill_library_checks()
 
         self.audit_table = PlanTable(self._bases)
         self.audit_table.cellDoubleClicked.connect(lambda r, _: self._rematch(self.audit_table, r, False))
@@ -445,6 +482,7 @@ class MainWindow(QMainWindow):
 
     def open_wizard(self) -> None:
         if SetupWizard(self.cfg, self).exec():
+            self._fill_library_checks()
             self.log("Einrichtung gespeichert.")
 
     def _browse(self) -> None:
@@ -562,8 +600,14 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "Bibliothek", str(e))
             return
-        opts = AuditOptions(self.opt_movies.isChecked(), self.opt_shows.isChecked(),
-                            self.opt_empty.isChecked(), self.opt_titles.isChecked(), self.opt_plex.isChecked())
+        libs = self._checked_libs()
+        if not libs:
+            QMessageBox.information(self, "Bibliothek prüfen", "Keine Bibliothek angehakt.")
+            return
+        has_shows = any(l.kind == "show" for l in libs)
+        opts = AuditOptions(movies=any(l.kind == "movie" for l in libs), shows=has_shows,
+                            empty=self.opt_empty.isChecked(), episode_titles=has_shows and self.opt_titles.isChecked(),
+                            plex_sync=has_shows and self.opt_plex.isChecked(), libraries={l.path for l in libs})
         catalog = None
         if opts.plex_sync and opts.shows:
             if not self.cfg.plex_token:

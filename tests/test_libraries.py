@@ -108,3 +108,12 @@ def test_ov_library_gets_titles_in_its_own_language(tmp_path):
     [ov_item] = item.retarget(ov)
     assert ov_item.target == ov / "F1 (2025) {tmdb-911430}" / "F1 (2025).mkv"  # OV library: English
     assert ov_item.match.title == "F1"
+
+
+def test_audit_only_selected_libraries(tmp_path):
+    lib, movies, disney, tv, kids = _lib(tmp_path)
+    touch(movies / "Old Movie" / "old.mkv")
+    touch(disney / "American Sniper (2014) {tmdb-84}" / "sniper.mkv")
+    lib.refresh()
+    items = build_audit_plan(FakeTMDB(), lib, AuditOptions(shows=False, empty=False, libraries={disney}))
+    assert {i.source.parent for i in items} == {disney}  # "movies" was not selected

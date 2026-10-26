@@ -55,10 +55,13 @@ Während der Übertragung zeigt ein Panel oben Gesamt- und Dateifortschritt, Ges
 
 ## Bibliothek prüfen
 
-Optionen:
+Oben die **Bibliotheken** anhaken, die geprüft werden sollen (alle verwalteten stehen dort, z. B. „Disney (Filme)“, „Filme“, „Serien“). Geprüft wird:
 
-- **Filme:** fehlendes Jahr / TMDB-ID im Ordnernamen, Dateiname ≠ Ordnername, doppelte Filme (Konflikt).
-- **Serien:** Release-Namen bei Folgen, Folgen im falschen Staffelordner, fehlende Folgentitel.
+- **in Film-Bibliotheken:** fehlendes Jahr / TMDB-ID im Ordnernamen, Dateiname ≠ Ordnername, doppelte Filme (Konflikt).
+- **in Serien-Bibliotheken:** Release-Namen bei Folgen, Folgen im falschen Staffelordner, fehlende Folgentitel.
+
+Zusätzlich wählbar:
+
 - **Leere Ordner:** Ordner ohne Video. Werden **nie** vorausgewählt und auf dem Netzlaufwerk endgültig gelöscht (eigene Warnung).
 - **Plex-Abgleich (Folgennummern):** vergleicht jede Folge mit der Folgenliste, die Plex für die Serie verwendet (inkl. Folgen ohne Datei), und schlägt korrigierte Nummern vor – z. B. Weihnachtsspecials von `S07E00` nach `S06E14`, oder eine um eins verschobene Staffel. Titel werden deutsch und englisch verglichen. Verschoben wird nur, wenn der Titel eindeutig zu einer anderen Folge passt; bei bloß anders übersetzten Titeln bleibt die Folge, wo sie ist. Braucht den Plex-Token.
 - **Episodentitel übernehmen:** ersetzt vorhandene Titel durch die von Plex/TMDB (sonst bleiben sie, wie sie sind).

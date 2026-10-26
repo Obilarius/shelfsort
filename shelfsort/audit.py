@@ -28,22 +28,28 @@ class AuditOptions:
     empty: bool = True
     episode_titles: bool = False  # also replace episode titles with the TMDB/Plex ones
     plex_sync: bool = False  # renumber episodes to match the show's ordering in Plex
+    libraries: set[Path] | None = None  # library folders to check (None: all)
+
+    def includes(self, root: Path) -> bool:
+        return self.libraries is None or str(root).lower() in {str(p).lower() for p in self.libraries}
 
 
 def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
                      progress: ProgressFn | None = None, catalog: PlexCatalog | None = None,
                      only_shows: set[Path] | None = None) -> list[PlanItem]:
     """only_shows: check just these show folders (e.g. after changing their ordering in Plex)."""
+    movie_roots = [r for r in lib.movie_roots if opts.includes(r)]
+    show_roots = [r for r in lib.show_roots if opts.includes(r)]
     plex_shows = {}
-    if opts.shows and opts.plex_sync and catalog:
+    if opts.shows and opts.plex_sync and catalog and show_roots:
         plex_shows = catalog.shows(progress)
     jobs = []
     if (opts.movies or opts.empty) and only_shows is None:
-        for root in lib.movie_roots:
+        for root in movie_roots:
             jobs += [(d, audit_movie_dir) for d in list_dirs(root)]
     if opts.shows or opts.empty:
         wanted = {str(p).lower() for p in only_shows} if only_shows is not None else None
-        for root in lib.show_roots:
+        for root in show_roots:
             jobs += [(d, audit_show_dir) for d in list_dirs(root) if wanted is None or str(d).lower() in wanted]
     items: list[PlanItem] = []
     for i, (d, fn) in enumerate(jobs):
