@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout
                                QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox,
                                QSplitter, QVBoxLayout, QWidget)
 
+from .details import _date_de
+from .i18n import tr
 from .matcher import norm, year_of
 from .plan import Override
 from .posters import PosterLoader
@@ -23,7 +25,7 @@ class MatchDialog(QDialog):
                  season: int | None = None, episodes: list[int] | None = None,
                  episode_fields: bool = False, kind_fixed: bool = False, context: str = "", parent=None):
         super().__init__(parent)
-        self.setWindowTitle("TMDB-Treffer wählen")
+        self.setWindowTitle(tr("TMDB-Treffer wählen"))
         self.resize(1000, 640)
         self.tmdb = tmdb
         self.result_override: Override | None = None
@@ -31,24 +33,24 @@ class MatchDialog(QDialog):
         self._generation = 0  # ignores posters arriving for an outdated result list
         self._results: list[dict] = []
 
-        ctx = QLabel(f"Aktuell: <b>{context}</b>" if context else "")
+        ctx = QLabel(tr("Aktuell: <b>{context}</b>", context=context) if context else "")
         ctx.setTextFormat(Qt.RichText)
         ctx.setTextInteractionFlags(Qt.TextSelectableByMouse)
         ctx.setVisible(bool(context))
 
         self.kind = QComboBox()
-        self.kind.addItem("Film", "movie")
-        self.kind.addItem("Serie", "show")
+        self.kind.addItem(tr("Film"), "movie")
+        self.kind.addItem(tr("Serie"), "show")
         self.kind.setCurrentIndex(0 if kind == "movie" else 1)
         self.kind.setEnabled(not kind_fixed)
         self.query = QLineEdit(query)
         self.query.setClearButtonEnabled(True)
         self.year = QLineEdit(str(year) if year else "")
-        self.year.setPlaceholderText("alle Jahre")
+        self.year.setPlaceholderText(tr("alle Jahre"))
         self.year.setValidator(QIntValidator(1870, 2100, self))
         self.year.setClearButtonEnabled(True)
         self.year.setFixedWidth(110)
-        search = QPushButton("Suchen")
+        search = QPushButton(tr("Suchen"))
         search.setDefault(True)
         search.clicked.connect(self._search)
         self.query.returnPressed.connect(self._search)
@@ -57,7 +59,7 @@ class MatchDialog(QDialog):
         top = QHBoxLayout()
         top.addWidget(self.kind)
         top.addWidget(self.query, 1)
-        top.addWidget(QLabel("Jahr"))
+        top.addWidget(QLabel(tr("Jahr")))
         top.addWidget(self.year)
         top.addWidget(search)
 
@@ -89,7 +91,7 @@ class MatchDialog(QDialog):
         self.ep_to = QSpinBox()
         self.ep_to.setRange(0, 9999)
         self.ep_to.setValue((episodes or [1])[-1])
-        for label, w in (("Staffel", self.season), ("Folge", self.ep_from), ("bis", self.ep_to)):
+        for label, w in ((tr("Staffel"), self.season), (tr("Folge"), self.ep_from), (tr("bis"), self.ep_to)):
             ep.addWidget(QLabel(label))
             ep.addWidget(w)
         ep.addStretch()
@@ -98,8 +100,8 @@ class MatchDialog(QDialog):
         self._toggle_ep()
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Übernehmen")
-        buttons.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        buttons.button(QDialogButtonBox.Ok).setText(tr("Übernehmen"))
+        buttons.button(QDialogButtonBox.Cancel).setText(tr("Abbrechen"))
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
 
@@ -175,10 +177,11 @@ class MatchDialog(QDialog):
         search = self.tmdb.search_movie if movie else self.tmdb.search_tv
         try:
             res = search(q, year)
-            info = f"{len(res)} Treffer" + (f" für {year}" if year else "")
+            info = (tr("{count} Treffer für {year}", count=len(res), year=year) if year else
+                    tr("{count} Treffer", count=len(res)))
             if not res and year:
                 res = search(q)
-                info = f"Keine Treffer für {year} – zeige alle Jahre ({len(res)} Treffer)"
+                info = tr("Keine Treffer für {year} – zeige alle Jahre ({count} Treffer)", year=year, count=len(res))
         except Exception as e:
             QMessageBox.warning(self, "TMDB", str(e))
             return
@@ -228,16 +231,18 @@ class MatchDialog(QDialog):
         self.d_title.setText(f"{title} ({date[:4] or '?'})")
         meta = []
         if orig and orig != title:
-            meta.append(f"Original: {orig}")
+            meta.append(tr("Original: {title}", title=orig))
         if date:
-            meta.append(("Kinostart " if movie else "Erstausstrahlung ") + ".".join(reversed(date.split("-"))))
+            shown = _date_de(date)
+            meta.append(tr("Kinostart {date}", date=shown) if movie else tr("Erstausstrahlung {date}", date=shown))
         if r.get("vote_count"):
-            meta.append(f"★ {r.get('vote_average', 0):.1f} von {r['vote_count']} Bewertungen")
+            meta.append(tr("★ {rating} von {count} Bewertungen", rating=f"{r.get('vote_average', 0):.1f}",
+                           count=r["vote_count"]))
         meta.append(f"tmdb-{r['id']}")
         self.d_meta.setText("  ·  ".join(meta))
-        self.d_overview.setText(r.get("overview") or "Keine Beschreibung vorhanden.")
+        self.d_overview.setText(r.get("overview") or tr("Keine Beschreibung vorhanden."))
         self.poster.clear()
-        self.poster.setText("kein Cover" if not r.get("poster_path") else "lädt …")
+        self.poster.setText(tr("kein Cover") if not r.get("poster_path") else tr("lädt …"))
         rid = r["id"]
         self._load(r.get("poster_path"), "w342",
                    lambda pix: self._results and self.results.currentRow() >= 0
@@ -247,7 +252,7 @@ class MatchDialog(QDialog):
     def _accept(self) -> None:
         item = self.results.currentItem()
         if not item:
-            QMessageBox.information(self, "TMDB", "Bitte einen Treffer auswählen.")
+            QMessageBox.information(self, "TMDB", tr("Bitte einen Treffer auswählen."))
             return
         kind = self.kind.currentData()
         ov = Override(kind, int(item.data(Qt.UserRole)))

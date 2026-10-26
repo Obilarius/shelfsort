@@ -9,6 +9,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout
 
 from .executor import TransferInfo
+from .i18n import tr
 
 
 def fmt_bytes(n: float) -> str:
@@ -61,10 +62,10 @@ class TransferPanel(QFrame):
         self.file_label.setStyleSheet("color: gray")
         self.stats = QLabel()
 
-        self.cancel_btn = QPushButton("Abbrechen")
-        self.cancel_btn.setToolTip("Laufende Kopie wird verworfen, das Original bleibt. Rest wird nicht angefasst.")
+        self.cancel_btn = QPushButton(tr("Abbrechen"))
+        self.cancel_btn.setToolTip(tr("Laufende Kopie wird verworfen, das Original bleibt. Rest wird nicht angefasst."))
         self.cancel_btn.clicked.connect(self._cancel)
-        self.close_btn = QPushButton("Schließen")
+        self.close_btn = QPushButton(tr("Schließen"))
         self.close_btn.clicked.connect(self._close)
 
         head = QHBoxLayout()
@@ -89,7 +90,7 @@ class TransferPanel(QFrame):
         self.t0 = time.monotonic()
         self.samples: deque[tuple[float, int]] = deque()
         self.last: TransferInfo | None = None
-        self.title.setText(f"Übertrage {count} Einträge …")
+        self.title.setText(tr("Übertrage {count} Einträge …", count=count))
         self.overall.setValue(0)
         self.overall.setFormat("0 %")
         self.file_bar.setValue(0)
@@ -112,7 +113,7 @@ class TransferPanel(QFrame):
     @Slot(object)
     def update_transfer(self, info: TransferInfo) -> None:
         self.last = info
-        self.title.setText(f"Datei {info.item_no} von {info.item_count}")
+        self.title.setText(tr("Datei {n} von {total}", n=info.item_no, total=info.item_count))
         self.file_label.setText(
             f"{info.name}   ·   {fmt_bytes(info.file_done)} / {fmt_bytes(info.file_total)}")
         self.file_bar.setValue(int(info.file_done * 1000 / info.file_total) if info.file_total else 1000)
@@ -130,9 +131,10 @@ class TransferPanel(QFrame):
     def finish(self, cancelled: bool) -> str:
         elapsed = fmt_duration(time.monotonic() - self.t0)
         if cancelled:
-            text = f"Abgebrochen – {self.done} erledigt, Rest unverändert ({elapsed})"
+            text = tr("Abgebrochen – {done} erledigt, Rest unverändert ({elapsed})", done=self.done, elapsed=elapsed)
         else:
-            text = f"Fertig – {self.done} erledigt, {self.failed} Fehler ({elapsed})"
+            text = tr("Fertig – {done} erledigt, {failed} Fehler ({elapsed})", done=self.done, failed=self.failed,
+                      elapsed=elapsed)
             self._set_overall(1.0, fmt_bytes(self.last.all_total) if self.last and self.last.all_total else "")
             self.file_bar.setValue(1000)
         self.title.setText(text)
@@ -158,15 +160,15 @@ class TransferPanel(QFrame):
             if t1 > t0 and b1 > b0:
                 speed = (b1 - b0) / (t1 - t0)
                 parts.append(f"{fmt_bytes(speed)}/s")
-                parts.append(f"noch ca. {fmt_duration((info.all_total - info.all_done) / speed)}")
-        parts.append(f"{self.done} erledigt")
+                parts.append(tr("noch ca. {time}", time=fmt_duration((info.all_total - info.all_done) / speed)))
+        parts.append(tr("{count} erledigt", count=self.done))
         if self.failed:
-            parts.append(f"{self.failed} Fehler")
+            parts.append(tr("{count} Fehler", count=self.failed))
         self.stats.setText("   ·   ".join(parts))
 
     def _cancel(self) -> None:
         self.cancel_btn.setEnabled(False)
-        self.title.setText("Breche ab …")
+        self.title.setText(tr("Breche ab …"))
         self.cancel_requested.emit()
 
     def _close(self) -> None:

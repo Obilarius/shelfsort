@@ -10,6 +10,7 @@ from typing import Callable
 
 from send2trash import send2trash
 
+from .i18n import tr
 from .parse import has_video, walk_videos
 from .plan import PlanItem
 
@@ -58,7 +59,7 @@ def _same_file(a: Path, b: Path) -> bool:
 
 def _check_free(src: Path, dst: Path) -> None:
     if dst.exists() and not _same_file(src, dst):
-        raise FileExistsError(f"Ziel existiert bereits: {dst}")
+        raise FileExistsError(tr("Ziel existiert bereits: {path}", path=dst))
 
 
 def crosses_drive(src: Path, dst: Path) -> bool:
@@ -98,7 +99,7 @@ def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None 
                     progress(done, size)
         shutil.copystat(src, tmp)
         if tmp.stat().st_size != size:
-            raise IOError(f"Größe stimmt nach dem Kopieren nicht: {dst.name}")
+            raise IOError(tr("Größe stimmt nach dem Kopieren nicht: {name}", name=dst.name))
         os.replace(tmp, dst)
     except BaseException:
         tmp.unlink(missing_ok=True)
@@ -145,7 +146,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
 
     def fail(it: PlanItem, e: Exception) -> None:
         it.status, it.note = "error", str(e)
-        rep.log(f"FEHLER {it.source.name}: {e}")
+        rep.log(tr("FEHLER {name}: {error}", name=it.source.name, error=e))
         rep.item_state(it, "error")
 
     # 1) folder renames first, so file moves inside them can be remapped
@@ -157,7 +158,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 os.rename(src, dst)
                 fix.add(src, dst)
                 touched.add(dst)
-                rep.log(f"Ordner: {src.name} → {dst.name}")
+                rep.log(tr("Ordner: {old} → {new}", old=src.name, new=dst.name))
             except Exception as e:
                 fail(it, e)
 
@@ -211,7 +212,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 it.status, it.selected = "done", False
                 rep.item_state(it, "done")
         except Cancelled:
-            it.status, it.note = "cancelled", "Abgebrochen – Original unverändert"
+            it.status, it.note = "cancelled", tr("Abgebrochen – Original unverändert")
             rep.item_state(it, "cancelled")
             cancelled = True
             break
@@ -225,12 +226,13 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
             if tmp.exists() and not orig.exists():
                 os.rename(tmp, orig)
             elif tmp.exists():
-                rep.log(f"ACHTUNG: {tmp.name} konnte nicht zurückbenannt werden ({orig.name} ist belegt)")
+                rep.log(tr("ACHTUNG: {temp} konnte nicht zurückbenannt werden ({name} ist belegt)",
+                           temp=tmp.name, name=orig.name))
         except OSError as e:
-            rep.log(f"ACHTUNG: {tmp} konnte nicht zurückbenannt werden: {e}")
+            rep.log(tr("ACHTUNG: {temp} konnte nicht zurückbenannt werden: {error}", temp=tmp, error=e))
 
     if cancelled:
-        rep.log("Abgebrochen – restliche Einträge wurden nicht angefasst.")
+        rep.log(tr("Abgebrochen – restliche Einträge wurden nicht angefasst."))
 
     # 3) deletions (empty library folders: network share has no recycle bin -> permanent)
     for it in ([] if cancelled else todo):
@@ -243,9 +245,9 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
             for op in dels:
                 path = fix(op.src)
                 if has_video(path):
-                    raise RuntimeError("Ordner enthält inzwischen ein Video – nicht gelöscht")
+                    raise RuntimeError(tr("Ordner enthält inzwischen ein Video – nicht gelöscht"))
                 shutil.rmtree(path)
-                rep.log(f"Gelöscht: {path}")
+                rep.log(tr("Gelöscht: {path}", path=path))
             it.status, it.selected = "done", False
             rep.item_state(it, "done")
         except Exception as e:
@@ -265,9 +267,9 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         if d.exists() and not walk_videos(d, skip_extras=False):  # samples don't count
             try:
                 send2trash(str(d))
-                rep.log(f"Aufgeräumt (Papierkorb): {d.name}")
+                rep.log(tr("Aufgeräumt (Papierkorb): {name}", name=d.name))
             except Exception as e:
-                rep.log(f"Konnte {d} nicht aufräumen: {e}")
+                rep.log(tr("Konnte {path} nicht aufräumen: {error}", path=d, error=e))
 
     lib_touched = {p for p in touched if any(r == p or r in p.parents for r in library_roots)}
     return lib_touched, bool(fix.pairs)

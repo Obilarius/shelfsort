@@ -8,6 +8,7 @@ from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
 from .naming import episode_name, movie_folder, movie_name, show_folder
 from .parse import is_video, parse_release, walk_videos
+from .i18n import tr
 from .plan import Override, PlanItem, finalize
 from .plex_sync import is_placeholder
 
@@ -27,7 +28,7 @@ def build_import_plan(root: Path, tmdb, lib: Library, min_bytes: int,
     items: list[PlanItem] = []
     for i, v in enumerate(videos):
         if progress:
-            progress(f"Erkenne {v.name}", i, len(videos))
+            progress(tr("Erkenne {name}", name=v.name), i, len(videos))
         items.append(plan_import(v, root, tmdb, lib, plex_eps=plex_eps))
     return finalize(items)
 
@@ -89,7 +90,7 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
     p = item.parsed
     match = movie_by_id(tmdb, ov.tmdb_id) if ov else _find_any(find_movie, tmdb, p)
     if not match:
-        item.status, item.note = "review", f"Kein TMDB-Treffer für „{p.title}“ – Doppelklick zum Suchen"
+        item.status, item.note = "review", tr("Kein TMDB-Treffer für „{title}“ – Doppelklick zum Suchen", title=p.title)
         return
     existing, elsewhere = _existing(lib.movie_by_id.get(match.tmdb_id), target, lib)
     root = lib.root_of(existing) if existing else (target or lib.movies_root)
@@ -101,23 +102,23 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
 
     if not (match.confident or ov):
         item.status = "review"
-        item.add_note("Treffer unsicher – bitte prüfen")
+        item.add_note(tr("Treffer unsicher – bitte prüfen"))
     if elsewhere:
         item.status = "review"
-        item.add_note(f"Film liegt schon in Bibliothek „{lib.title(lib.root_of(elsewhere))}“")
+        item.add_note(tr("Film liegt schon in Bibliothek „{library}“", library=lib.title(lib.root_of(elsewhere))))
     elif existing:
         others = [f.name for f in existing.iterdir() if f.is_file() and is_video(f)]
         if others:
             item.status = "review"
-            item.add_note(f"Film schon vorhanden: {', '.join(others)}")
+            item.add_note(tr("Film schon vorhanden: {files}", files=', '.join(others)))
     else:
         similar = lib.movie_by_title.get(norm(match.title))
         if similar:
             item.status = "review"
-            item.add_note(f"Ähnlicher Ordner vorhanden: {similar[0].name}")
+            item.add_note(tr("Ähnlicher Ordner vorhanden: {name}", name=similar[0].name))
     if item.target.exists():
         item.status = "conflict"
-        item.add_note("Ziel existiert bereits")
+        item.add_note(tr("Ziel existiert bereits"))
 
 
 def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None,
@@ -127,11 +128,11 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     episodes = ov.episodes if ov and ov.episodes else p.episodes
     match = show_by_id(tmdb, ov.tmdb_id) if ov else _find_any(find_show, tmdb, p)
     if not match:
-        item.status, item.note = "review", f"Keine Serie „{p.title}“ bei TMDB – Doppelklick zum Suchen"
+        item.status, item.note = "review", tr("Keine Serie „{title}“ bei TMDB – Doppelklick zum Suchen", title=p.title)
         return
     item.match = match
     if season is None or not episodes:
-        item.status, item.note = "review", "Staffel/Folge nicht erkannt – Doppelklick zum Eintragen"
+        item.status, item.note = "review", tr("Staffel/Folge nicht erkannt – Doppelklick zum Eintragen")
         return
 
     existing, elsewhere = _existing(lib.show_by_id.get(match.tmdb_id), target, lib)
@@ -169,19 +170,19 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
 
     if not (match.confident or ov):
         item.status = "review"
-        item.add_note("Serien-Treffer unsicher – bitte prüfen")
+        item.add_note(tr("Serien-Treffer unsicher – bitte prüfen"))
     if elsewhere:
         item.status = "review"
-        item.add_note(f"Serie liegt schon in Bibliothek „{lib.title(lib.root_of(elsewhere))}“ – "
-                      f"Folge käme in einen zweiten Serienordner")
+        item.add_note(tr("Serie liegt schon in Bibliothek „{library}“ – Folge käme in einen zweiten Serienordner",
+                         library=lib.title(lib.root_of(elsewhere))))
     elif not existing:
-        item.add_note("Neue Serie")
+        item.add_note(tr("Neue Serie"))
     if in_plex:
-        item.add_note("Titel laut Plex-Reihenfolge")
+        item.add_note(tr("Titel laut Plex-Reihenfolge"))
     if t1 is None:
         item.status = "review"
-        item.add_note("Folge in Plex-Reihenfolge unbekannt – Nummer prüfen" if in_plex
-                      else "Folge nicht bei TMDB (andere Reihenfolge?) – ohne Titel")
+        item.add_note(tr("Folge in Plex-Reihenfolge unbekannt – Nummer prüfen") if in_plex
+                      else tr("Folge nicht bei TMDB (andere Reihenfolge?) – ohne Titel"))
     if item.target.exists():
         item.status = "conflict"
-        item.add_note("Ziel existiert bereits")
+        item.add_note(tr("Ziel existiert bereits"))

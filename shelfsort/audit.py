@@ -8,6 +8,7 @@ from pathlib import Path
 
 from guessit import guessit
 
+from .i18n import tr
 from .importer import ProgressFn
 from .library import Library, list_dirs, localized
 from .matcher import find_movie, find_show, movie_by_id, show_by_id
@@ -54,7 +55,7 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
     items: list[PlanItem] = []
     for i, (d, fn) in enumerate(jobs):
         if progress:
-            progress(f"Prüfe {d.parent.name}\\{d.name}", i, len(jobs))
+            progress(tr("Prüfe {parent}\\{name}", parent=d.parent.name, name=d.name), i, len(jobs))
         language = lib.language_of(d)  # each library may use its own title language (e.g. OV)
         t = localized(tmdb, language)
         try:
@@ -64,7 +65,8 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
                 except ProviderError as e:
                     # unofficial service down/changed: say so once, continue without Plex sync
                     items.append(PlanItem("show_dir", lib.tv_root, "plex-provider", status="error",
-                                          note=f"{e} – Plex-Abgleich übersprungen, Serien nur nach Namen geprüft"))
+                                          note=tr("{error} – Plex-Abgleich übersprungen, Serien nur nach Namen geprüft",
+                                                   error=e)))
                     plex_shows = {}
                 else:
                     items += audit_show_dir(d, t, lib, opts, plex_eps=eps)
@@ -85,7 +87,9 @@ def _dir_stats(d: Path) -> str:
                 size += (Path(dirpath) / f).stat().st_size
             except OSError:
                 pass
-    return "leer" if count == 0 else f"{count} Datei(en), {size / 1024 / 1024:.1f} MB, kein Video"
+    if count == 0:
+        return tr("leer")
+    return tr("{count} Datei(en), {size} MB, kein Video", count=count, size=f"{size / 1024 / 1024:.1f}")
 
 
 def empty_item(d: Path, group: str) -> PlanItem:
@@ -128,7 +132,7 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
     main = [v for v in videos if v.parent == d] or videos
     parts = {v: parse_release(v).part for v in main}
     if len(main) > 1 and not all(parts.values()):
-        item.status, item.note = "review", f"{len(main)} Videodateien im Ordner – manuell prüfen"
+        item.status, item.note = "review", tr("{count} Videodateien im Ordner – manuell prüfen", count=len(main))
         return [item]
 
     if VALID_MOVIE_DIR.match(d.name) and not override:
@@ -144,22 +148,22 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
                 year = p.year
             match = find_movie(tmdb, title, year)
         if not match:
-            item.status, item.note = "review", "Kein TMDB-Treffer – Doppelklick zum Suchen"
+            item.status, item.note = "review", tr("Kein TMDB-Treffer – Doppelklick zum Suchen")
             return [item]
         item.match = match
         new_dir_name = movie_folder(match.title, match.year, match.tmdb_id)
         base = movie_name(match.title, match.year)
         if not (override or fid or match.confident):
             item.status = "review"
-            item.add_note("Treffer unsicher – bitte prüfen")
+            item.add_note(tr("Treffer unsicher – bitte prüfen"))
 
     new_dir = d.parent / new_dir_name
     if new_dir_name != d.name:
         if new_dir.exists() and new_dir_name.lower() != d.name.lower():
             item.status = "conflict"
-            item.add_note(f"Zielordner existiert bereits: {new_dir_name}")
+            item.add_note(tr("Zielordner existiert bereits: {name}", name=new_dir_name))
         item.ops.append(Op("rename_dir", d, new_dir))
-        item.add_note("Ordner umbenennen")
+        item.add_note(tr("Ordner umbenennen"))
 
     final_name = None
     for v in main:
@@ -168,7 +172,7 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         before = len(item.ops)
         item.set_video_move(v, d / name)
         if len(item.ops) > before:
-            item.add_note("Datei umbenennen")
+            item.add_note(tr("Datei umbenennen"))
     item.target = new_dir / final_name
     return [item]
 
@@ -202,7 +206,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         else:
             match = find_show(tmdb, *_guess_title_year(d.name, "episode"))
         if not match:
-            dir_item.status, dir_item.note = "review", "Keine Serie bei TMDB – Doppelklick zum Suchen"
+            dir_item.status, dir_item.note = "review", tr("Keine Serie bei TMDB – Doppelklick zum Suchen")
         else:
             dir_item.match = match
             show_id = match.tmdb_id
@@ -210,13 +214,13 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
             dir_item.target = d.parent / new_name
             if new_name != d.name:
                 dir_item.ops.append(Op("rename_dir", d, dir_item.target))
-                dir_item.note = "Serienordner umbenennen"
+                dir_item.note = tr("Serienordner umbenennen")
                 if dir_item.target.exists() and new_name.lower() != d.name.lower():
                     dir_item.status = "conflict"
-                    dir_item.add_note("Zielordner existiert bereits")
+                    dir_item.add_note(tr("Zielordner existiert bereits"))
             if not (override or tmdb_id_of(d.name) or match.confident):
                 dir_item.status = "review"
-                dir_item.add_note("Treffer unsicher – bitte prüfen")
+                dir_item.add_note(tr("Treffer unsicher – bitte prüfen"))
             if dir_item.status == "ok":
                 display = strip_ids(new_name)
         items.append(dir_item)
@@ -251,10 +255,10 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
                 if hit is not None and nums and hit.season != nums[0] and score < 0.99:
                     hit = None  # jumping to another season needs a practically exact title
                 if hit is not None and hit is not at:
-                    old = episode_code(*nums) if nums else "ohne Nummer"
+                    old = episode_code(*nums) if nums else tr("ohne Nummer")
                     nums = (hit.season, [hit.episode])
                     at = hit
-                    it.add_note(f"Plex-Abgleich: {old} → {episode_code(*nums)} („{hit.title}“)")
+                    it.add_note(tr("Plex-Abgleich: {old} → {new} („{title}“)", old=old, new=episode_code(*nums), title=hit.title))
                     if score < 0.9:
                         it.status = "review"
                 # No match anywhere: usually just a different translation of the title - the number
@@ -264,7 +268,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
 
         if not nums:
             # no clean SxxEyy (e.g. "S07E05,5") and no Plex hint - flag it, never guess a rename
-            it.status, it.note = "review", "Keine eindeutige SxxEyy-Nummer – manuell prüfen"
+            it.status, it.note = "review", tr("Keine eindeutige SxxEyy-Nummer – manuell prüfen")
             items.append(it)
             continue
         season, eps = nums
@@ -274,7 +278,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         it.set_video_move(v, season_dir / (episode_name(display, season, eps, title) + v.suffix.lower()))
         if it.ops:
             if not it.note:
-                it.note = "Staffelordner falsch" if v.parent != season_dir else "Dateiname"
+                it.note = tr("Staffelordner falsch") if v.parent != season_dir else tr("Dateiname")
             items.append(it)
 
     # A target occupied by a file that is not moving away would overwrite nothing - but it can't work either.
@@ -292,7 +296,8 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         blocker = staying.get((n[0], n[1][0])) if n else None
         if blocker is not None and blocker != it.source:
             it.status = "conflict"
-            it.add_note(f"{episode_code(*n)} ist schon belegt durch „{blocker.name}“ (wird nicht verschoben)")
+            it.add_note(tr("{code} ist schon belegt durch „{name}“ (wird nicht verschoben)",
+                            code=episode_code(*n), name=blocker.name))
     return items
 
 

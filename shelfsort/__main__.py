@@ -18,6 +18,10 @@ def selftest() -> int:
     checks = []
     p = parse_release(Path("Doctor.Who.2005.S07E06.German.DL.1080p.WEB.x264-GRP.mkv"))
     checks.append(("guessit", p.title == "Doctor Who" and p.season == 7 and p.episodes == [6]))
+    from . import i18n
+    i18n.set_language("en")
+    checks.append(("i18n", i18n.tr("Abbrechen") == "Cancel"))
+    i18n.set_language("de")
     assets = Path(__file__).parent / "assets"
     checks.append(("assets", all((assets / n).exists() for n in ("icon.png", "tmdb.svg"))))
     app = QApplication([])

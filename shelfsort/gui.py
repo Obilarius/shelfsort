@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QLibraryInfo, QObject, Qt, QThread, QTimer, QTranslator, Signal, Slot
 from PySide6.QtGui import QAction, QBrush, QColor, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
@@ -20,6 +20,8 @@ from .details import DetailsPanel
 from .dialogs import SettingsDialog, show_about
 from .match_dialog import MatchDialog
 from .executor import Reporter, TransferInfo, execute
+from . import i18n
+from .i18n import N_, tr
 from .importer import build_import_plan
 from .library import Library
 from .plan import Override, PlanItem
@@ -31,15 +33,15 @@ from .transfer_panel import TransferPanel
 from .wizard import SetupWizard
 
 STATUS = {
-    "ok": ("Bereit", QColor(46, 160, 67, 70)),
-    "review": ("Prüfen", QColor(210, 153, 34, 80)),
-    "conflict": ("Konflikt", QColor(218, 54, 51, 80)),
-    "error": ("Fehler", QColor(218, 54, 51, 110)),
-    "done": ("Erledigt", QColor(110, 118, 129, 60)),
-    "running": ("Läuft",QColor(56, 132, 255, 110)),
-    "cancelled": ("Abgebrochen", QColor(110, 118, 129, 60)),
+    "ok": (N_("Bereit"), QColor(46, 160, 67, 70)),
+    "review": (N_("Prüfen"), QColor(210, 153, 34, 80)),
+    "conflict": (N_("Konflikt"), QColor(218, 54, 51, 80)),
+    "error": (N_("Fehler"), QColor(218, 54, 51, 110)),
+    "done": (N_("Erledigt"), QColor(110, 118, 129, 60)),
+    "running": (N_("Läuft"),QColor(56, 132, 255, 110)),
+    "cancelled": (N_("Abgebrochen"), QColor(110, 118, 129, 60)),
 }
-KIND = {"movie": "Film", "episode": "Folge", "show_dir": "Serienordner", "empty": "Leerer Ordner"}
+KIND = {"movie": N_("Film"), "episode": N_("Folge"), "show_dir": N_("Serienordner"), "empty": N_("Leerer Ordner")}
 
 
 # --- background work ----------------------------------------------------------------------
@@ -67,13 +69,13 @@ class Worker(QObject):
 # --- table --------------------------------------------------------------------------------
 
 class PlanTable(QTableWidget):
-    COLS = ["", "Status", "Typ", "Aktuell", "Neu", "Hinweis"]
+    COLS = ["", N_("Status"), N_("Typ"), N_("Aktuell"), N_("Neu"), N_("Hinweis")]
 
     def __init__(self, bases: Callable[[], list[Path]]):
         super().__init__(0, len(self.COLS))
         self.bases = bases
         self.items: list[PlanItem] = []
-        self.setHorizontalHeaderLabels(self.COLS)
+        self.setHorizontalHeaderLabels([tr(c) if c else c for c in self.COLS])
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setWordWrap(False)
@@ -112,8 +114,8 @@ class PlanTable(QTableWidget):
         else:
             check.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
         text, color = STATUS.get(it.status, (it.status, QColor(0, 0, 0, 0)))
-        target = "(löschen)" if it.kind == "empty" else self._rel(it.target)
-        cells = [check, QTableWidgetItem(text), QTableWidgetItem(KIND.get(it.kind, it.kind)),
+        target = tr("(löschen)") if it.kind == "empty" else self._rel(it.target)
+        cells = [check, QTableWidgetItem(tr(text)), QTableWidgetItem(tr(KIND.get(it.kind, it.kind))),
                  QTableWidgetItem(self._rel(it.source)), QTableWidgetItem(target), QTableWidgetItem(it.note)]
         for c, cell in enumerate(cells):
             if c:
@@ -146,7 +148,7 @@ class PlanTable(QTableWidget):
             return
         text, color = STATUS.get(state, (state, QColor(0, 0, 0, 0)))
         cell = self.item(r, 1)
-        cell.setText(text)
+        cell.setText(tr(text))
         cell.setBackground(QBrush(color))
         if state == "running":
             self.scrollToItem(cell, QAbstractItemView.PositionAtCenter)
@@ -167,7 +169,7 @@ class PlanTable(QTableWidget):
 # --- main window --------------------------------------------------------------------------
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, first_start_wizard: bool = True):
         super().__init__()
         self.cfg = Config.load()
         self.setWindowTitle("ShelfSort")
@@ -177,23 +179,23 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self.import_root: Path | None = None
 
-        setup = QAction("Einrichten", self)
+        setup = QAction(tr("Einrichten"), self)
         setup.triggered.connect(self.open_wizard)
         self.menuBar().addAction(setup)
-        settings = QAction("Einstellungen", self)
+        settings = QAction(tr("Einstellungen"), self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
-        about = QAction("Über", self)
+        about = QAction(tr("Über"), self)
         about.triggered.connect(lambda: show_about(self))
         self.menuBar().addAction(about)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_import_tab(), "Import")
-        self.tabs.addTab(self._build_audit_tab(), "Bibliothek prüfen")
+        self.tabs.addTab(self._build_import_tab(), tr("Import"))
+        self.tabs.addTab(self._build_audit_tab(), tr("Bibliothek prüfen"))
         self.specials = SpecialsTab()
         self.specials.scan_requested.connect(lambda _: self.scan_specials())
         self.specials.apply_requested.connect(self.apply_specials)
-        self.tabs.addTab(self.specials, "Specials")
+        self.tabs.addTab(self.specials, tr("Specials"))
 
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
@@ -222,7 +224,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.progress)
         self.setAcceptDrops(True)
 
-        if not self.cfg.is_set_up:
+        if first_start_wizard and not self.cfg.is_set_up:
             QTimer.singleShot(0, self.open_wizard)  # first start
 
     # --- tabs ---
@@ -236,10 +238,10 @@ class MainWindow(QMainWindow):
 
     def _build_import_tab(self) -> QWidget:
         self.folder = QLineEdit(self.cfg.last_import_dir)
-        self.folder.setPlaceholderText(r"z. B. H:\Downloads – oder Ordner ins Fenster ziehen")
-        browse = QPushButton("Ordner wählen…")
+        self.folder.setPlaceholderText(tr(r"z. B. H:\Downloads – oder Ordner ins Fenster ziehen"))
+        browse = QPushButton(tr("Ordner wählen…"))
         browse.clicked.connect(self._browse)
-        self.scan_btn = QPushButton("Scannen")
+        self.scan_btn = QPushButton(tr("Scannen"))
         self.scan_btn.clicked.connect(self.scan_import)
         top = QHBoxLayout()
         top.addWidget(self.folder, 1)
@@ -248,7 +250,7 @@ class MainWindow(QMainWindow):
 
         self.import_table = PlanTable(self._bases)
         self.import_table.cellDoubleClicked.connect(lambda r, _: self._rematch(self.import_table, r, True))
-        self.import_run = QPushButton("Übertragen")
+        self.import_run = QPushButton(tr("Übertragen"))
         self.import_run.clicked.connect(lambda: self.run_plan(self.import_table))
 
         w = QWidget()
@@ -265,11 +267,11 @@ class MainWindow(QMainWindow):
             if w:
                 w.deleteLater()
         self.lib_checks: list[tuple[QCheckBox, object]] = []
-        label = QLabel("Bibliotheken:")
+        label = QLabel(tr("Bibliotheken:"))
         label.setStyleSheet("color: gray")
         self.lib_checks_box.addWidget(label)
         for lib in self.cfg.libs:
-            name = lib.title if lib.title == KINDS[lib.kind] else f"{lib.title} ({KINDS[lib.kind]})"
+            name = tr(lib.title) if lib.title == KINDS[lib.kind] else f"{lib.title} ({tr(KINDS[lib.kind])})"
             cb = QCheckBox(name)
             cb.setToolTip(str(lib.path))
             cb.setChecked(True)
@@ -292,18 +294,18 @@ class MainWindow(QMainWindow):
     def _build_audit_tab(self) -> QWidget:
         self.lib_checks_box = QHBoxLayout()
         self.lib_checks: list = []
-        self.opt_empty = QCheckBox("Leere Ordner")
-        self.opt_plex = QCheckBox("Plex-Abgleich (Folgennummern)")
-        self.opt_plex.setToolTip("Vergleicht jede Folge mit der Reihenfolge, die in Plex für die Serie eingestellt ist\n"
-                                 "(z. B. TheTVDB BBC iPlayer), und schlägt korrigierte Nummern vor. Braucht den Plex-Token.")
-        self.opt_titles = QCheckBox("Episodentitel übernehmen")
-        self.opt_titles.setToolTip("Aus: nur Struktur prüfen (Ordner, SxxEyy, Staffelordner), vorhandene Titel bleiben.\n"
-                                   "An: Titel jeder Folge mit TMDB abgleichen (langsamer, viele Änderungen).")
+        self.opt_empty = QCheckBox(tr("Leere Ordner"))
+        self.opt_plex = QCheckBox(tr("Plex-Abgleich (Folgennummern)"))
+        self.opt_plex.setToolTip(tr("Vergleicht jede Folge mit der Reihenfolge, die in Plex für die Serie eingestellt ist\n"
+                                    "(z. B. TheTVDB BBC iPlayer), und schlägt korrigierte Nummern vor. Braucht den Plex-Token."))
+        self.opt_titles = QCheckBox(tr("Episodentitel übernehmen"))
+        self.opt_titles.setToolTip(tr("Aus: nur Struktur prüfen (Ordner, SxxEyy, Staffelordner), vorhandene Titel bleiben.\n"
+                                      "An: Titel jeder Folge mit TMDB abgleichen (langsamer, viele Änderungen)."))
         self.opt_empty.setChecked(True)
-        self.audit_btn = QPushButton("Bibliothek prüfen")
+        self.audit_btn = QPushButton(tr("Bibliothek prüfen"))
         self.audit_btn.clicked.connect(self.scan_audit)
         options = QHBoxLayout()
-        options_label = QLabel("Prüfen:")
+        options_label = QLabel(tr("Prüfen:"))
         options_label.setStyleSheet("color: gray")
         options.addWidget(options_label)
         for cb in (self.opt_empty, self.opt_plex, self.opt_titles):
@@ -317,7 +319,7 @@ class MainWindow(QMainWindow):
 
         self.audit_table = PlanTable(self._bases)
         self.audit_table.cellDoubleClicked.connect(lambda r, _: self._rematch(self.audit_table, r, False))
-        self.audit_run = QPushButton("Ausgewählte ausführen")
+        self.audit_run = QPushButton(tr("Ausgewählte ausführen"))
         self.audit_run.clicked.connect(lambda: self.run_plan(self.audit_table))
 
         w = QWidget()
@@ -352,16 +354,16 @@ class MainWindow(QMainWindow):
             rows = table.selected_rows() if row in table.selected_rows() else [row]
             n = len(rows)
             menu = QMenu(table)
-            act = menu.addAction(f"Treffer für {n} Einträge wählen…" if n > 1 else "Anderen Treffer wählen…")
+            act = menu.addAction(tr("Treffer für {n} Einträge wählen…", n=n) if n > 1 else tr("Anderen Treffer wählen…"))
             targets = {}
             if import_mode:
                 # move the selection into another library of the same kind (movies/shows)
                 items = [table.items[r] for r in rows if table.items[r].retarget]
                 kinds = {"movie" if it.kind == "movie" else "show" for it in items}
                 if len(kinds) == 1 and len(libs := self.cfg.libs_of(kinds.pop())) > 1:
-                    sub = menu.addMenu("Ziel-Bibliothek")
+                    sub = menu.addMenu(tr("Ziel-Bibliothek"))
                     for lib in libs:
-                        a = sub.addAction(lib.title + ("  (Standard)" if lib.default else ""))
+                        a = sub.addAction(lib.title + ("  " + tr("(Standard)") if lib.default else ""))
                         a.setCheckable(True)
                         a.setChecked(all(it.library == lib.title for it in items))
                         targets[a] = lib
@@ -380,12 +382,12 @@ class MainWindow(QMainWindow):
         return split
 
     def _action_row(self, table: PlanTable, run: QPushButton) -> QHBoxLayout:
-        all_btn = QPushButton("Alle auswählen")
+        all_btn = QPushButton(tr("Alle auswählen"))
         all_btn.clicked.connect(lambda: table.set_all(True))
-        none_btn = QPushButton("Keine")
+        none_btn = QPushButton(tr("Keine"))
         none_btn.clicked.connect(lambda: table.set_all(False))
-        hint = QLabel("Doppelklick oder Rechtsklick: Treffer manuell wählen – mit Shift/Strg auch für mehrere Zeilen. "
-                      "Gelb = bitte prüfen, nicht vorausgewählt.")
+        hint = QLabel(tr("Doppelklick oder Rechtsklick: Treffer manuell wählen – mit Shift/Strg auch für mehrere Zeilen. "
+                         "Gelb = bitte prüfen, nicht vorausgewählt."))
         hint.setStyleSheet("color: gray")
         row = QHBoxLayout()
         row.addWidget(all_btn)
@@ -449,7 +451,7 @@ class MainWindow(QMainWindow):
     def _task_failed(self, msg: str) -> None:
         self._finish_task()
         self.log(msg)
-        QMessageBox.critical(self, "Fehler", msg.strip().splitlines()[-1])
+        QMessageBox.critical(self, tr("Fehler"), msg.strip().splitlines()[-1])
 
     @Slot(str, object, object)
     def _on_progress(self, text: str, done: int, total: int) -> None:
@@ -462,7 +464,7 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _on_transfer(self, info: TransferInfo) -> None:
         self.panel.update_transfer(info)
-        self.setWindowTitle(f"{self.panel.percent()} % – ShelfSort")
+        self.setWindowTitle(tr("{percent} % – ShelfSort", percent=self.panel.percent()))
 
     @Slot(object, str)
     def _on_item_state(self, it: PlanItem, state: str) -> None:
@@ -473,20 +475,42 @@ class MainWindow(QMainWindow):
 
     def _cancel_run(self) -> None:
         self._cancel.set()
-        self.log("Abbruch angefordert – laufende Datei wird verworfen …")
+        self.log(tr("Abbruch angefordert – laufende Datei wird verworfen …"))
 
     # --- actions ---
 
     def open_settings(self) -> None:
         SettingsDialog(self.cfg, self).exec()
 
-    def open_wizard(self) -> None:
-        if SetupWizard(self.cfg, self).exec():
-            self._fill_library_checks()
-            self.log("Einrichtung gespeichert.")
+    def open_wizard(self, start_meta: str | None = None) -> None:
+        wizard = SetupWizard(self.cfg, self, start_meta)
+        result = wizard.exec()
+        if result == SetupWizard.LANGUAGE_CHANGED:
+            # app language changed on page 1: switch now and reopen the wizard in the new language
+            lang, meta = wizard.language_switch
+            self.cfg.app_language = lang
+            self.cfg.save()
+            new = self._switch_language(lang)
+            QTimer.singleShot(0, lambda: new.open_wizard(meta))
+            return
+        if not result:
+            return
+        self._fill_library_checks()
+        self.log(tr("Einrichtung gespeichert."))
+
+    def _switch_language(self, lang: str) -> "MainWindow":
+        """Rebuild the main window in another UI language (no restart needed)."""
+        apply_language(lang)
+        new = MainWindow(first_start_wizard=False)
+        new.setGeometry(self.geometry())
+        new.show()
+        QApplication.instance().main_window = new
+        self.close()
+        self.deleteLater()
+        return new
 
     def _browse(self) -> None:
-        d = QFileDialog.getExistingDirectory(self, "Download-Ordner wählen", self.folder.text())
+        d = QFileDialog.getExistingDirectory(self, tr("Download-Ordner wählen"), self.folder.text())
         if d:
             self.folder.setText(d.replace("/", "\\"))
             self.scan_import()
@@ -506,7 +530,7 @@ class MainWindow(QMainWindow):
     def scan_import(self) -> None:
         root = Path(self.folder.text().strip().strip('"'))
         if not root.is_dir():
-            QMessageBox.warning(self, "Import", f"Ordner nicht gefunden:\n{root}")
+            QMessageBox.warning(self, tr("Import"), tr("Ordner nicht gefunden:\n{path}", path=root))
             return
         self.cfg.last_import_dir = str(root)
         self.cfg.save()
@@ -514,23 +538,23 @@ class MainWindow(QMainWindow):
         try:
             tmdb, lib = self._services()
         except Exception as e:
-            QMessageBox.warning(self, "Import", str(e))
+            QMessageBox.warning(self, tr("Import"), str(e))
             return
-        self.log(f"Scanne {root} …")
+        self.log(tr("Scanne {path} …", path=root))
         min_bytes = self.cfg.min_video_mb * 1024 * 1024
         # episode titles of shows Plex already has follow the show's ordering in Plex
         plex_eps = PlexEpisodeSource(catalog_for(self.cfg)) if self.cfg.plex_token else None
 
         def done(items):
             if plex_eps and plex_eps.error:
-                self.log(f"Plex nicht erreichbar, Folgentitel kommen von TMDB: {plex_eps.error}")
+                self.log(tr("Plex nicht erreichbar, Folgentitel kommen von TMDB: {error}", error=plex_eps.error))
             self._show(self.import_table, items)
 
         self.run_task(lambda w: build_import_plan(root, tmdb, lib, min_bytes, w.progress.emit, plex_eps), done)
 
     def _catalog(self) -> PlexCatalog | None:
         if not self.cfg.plex_token:
-            QMessageBox.warning(self, "Plex", "Kein Plex-Token in den Einstellungen.")
+            QMessageBox.warning(self, "Plex", tr("Kein Plex-Token in den Einstellungen."))
             return None
         return catalog_for(self.cfg)
 
@@ -538,33 +562,36 @@ class MainWindow(QMainWindow):
         catalog = self._catalog()
         if not catalog:
             return
-        self.log("Prüfe Specials und Episoden-Reihenfolgen …")
+        self.log(tr("Prüfe Specials und Episoden-Reihenfolgen …"))
 
         def done(result):
             reports, errors = result
             for e in errors:
-                self.log(f"Specials-Check: {e}")
+                self.log(tr("Specials-Check: {error}", error=e))
             better = sum(1 for r in reports if r.best)
-            self.log(f"{len(reports)} Serien mit Specials, bei {better} bringt eine andere Reihenfolge Specials in den Ablauf.")
+            self.log(tr("{n} Serien mit Specials, bei {better} bringt eine andere Reihenfolge Specials in den Ablauf.",
+                        n=len(reports), better=better))
             self.specials.set_reports(reports)
 
         self.run_task(lambda w: specials_overview(catalog, w.progress.emit), done)
 
     def apply_specials(self, chosen: list) -> None:
         if not chosen:
-            QMessageBox.information(self, "Specials", "Keine Serie angehakt.")
+            QMessageBox.information(self, tr("Specials"), tr("Keine Serie angehakt."))
             return
         lines, warn = [], False
         for rep, opt in chosen:
-            line = f"• {rep.show.title}: {rep.show.label(rep.show.ordering)} → {opt.label} ({len(opt.in_flow)} Specials in den Ablauf)"
+            line = tr("• {show}: {old} → {new} ({n} Specials in den Ablauf)", show=rep.show.title,
+                      old=rep.show.label(rep.show.ordering), new=opt.label, n=len(opt.in_flow))
             if opt.missing:
                 warn = True
-                line += f"\n    ACHTUNG: {len(opt.missing)} Specials gibt es in dieser Reihenfolge nicht"
+                line += "\n    " + tr("ACHTUNG: {n} Specials gibt es in dieser Reihenfolge nicht", n=len(opt.missing))
             lines.append(line)
-        text = ("Die Episoden-Reihenfolge wird in Plex umgestellt und die Metadaten der Serie neu geladen:\n\n"
-                + "\n".join(lines) + "\n\nDanach schlägt der Plex-Abgleich die neuen Dateinummern vor "
-                "(nichts wird automatisch umbenannt). Zurückstellen geht jederzeit in Plex oder hier.\n\nFortfahren?")
-        box = QMessageBox(QMessageBox.Warning if warn else QMessageBox.Question, "Reihenfolge umstellen", text,
+        text = tr("Die Episoden-Reihenfolge wird in Plex umgestellt und die Metadaten der Serie neu geladen:\n\n"
+                  "{lines}\n\nDanach schlägt der Plex-Abgleich die neuen Dateinummern vor "
+                  "(nichts wird automatisch umbenannt). Zurückstellen geht jederzeit in Plex oder hier.\n\nFortfahren?",
+                  lines="\n".join(lines))
+        box = QMessageBox(QMessageBox.Warning if warn else QMessageBox.Question, tr("Reihenfolge umstellen"), text,
                           QMessageBox.Yes | QMessageBox.No, self)
         if box.exec() != QMessageBox.Yes:
             return
@@ -574,7 +601,7 @@ class MainWindow(QMainWindow):
         try:
             tmdb, lib = self._services()
         except Exception as e:
-            QMessageBox.warning(self, "Specials", str(e))
+            QMessageBox.warning(self, tr("Specials"), str(e))
             return
         cfg = self.cfg
 
@@ -589,7 +616,7 @@ class MainWindow(QMainWindow):
         def done(items):
             self.tabs.setCurrentIndex(1)
             self._show(self.audit_table, items)
-            self.log("Neue Dateinummern stehen unter „Bibliothek prüfen“ – bitte prüfen und ausführen.")
+            self.log(tr("Neue Dateinummern stehen unter „Bibliothek prüfen“ – bitte prüfen und ausführen."))
             self.scan_specials()
 
         self.run_task(work, done)
@@ -598,11 +625,11 @@ class MainWindow(QMainWindow):
         try:
             tmdb, lib = self._services()
         except Exception as e:
-            QMessageBox.warning(self, "Bibliothek", str(e))
+            QMessageBox.warning(self, tr("Bibliothek"), str(e))
             return
         libs = self._checked_libs()
         if not libs:
-            QMessageBox.information(self, "Bibliothek prüfen", "Keine Bibliothek angehakt.")
+            QMessageBox.information(self, tr("Bibliothek prüfen"), tr("Keine Bibliothek angehakt."))
             return
         has_shows = any(l.kind == "show" for l in libs)
         opts = AuditOptions(movies=any(l.kind == "movie" for l in libs), shows=has_shows,
@@ -611,10 +638,10 @@ class MainWindow(QMainWindow):
         catalog = None
         if opts.plex_sync and opts.shows:
             if not self.cfg.plex_token:
-                QMessageBox.warning(self, "Plex-Abgleich", "Kein Plex-Token in den Einstellungen.")
+                QMessageBox.warning(self, tr("Plex-Abgleich"), tr("Kein Plex-Token in den Einstellungen."))
                 return
             catalog = catalog_for(self.cfg)
-        self.log("Prüfe Bibliothek …")
+        self.log(tr("Prüfe Bibliothek …"))
         self.run_task(lambda w: build_audit_plan(tmdb, lib, opts, w.progress.emit, catalog),
                       lambda items: self._show(self.audit_table, items))
 
@@ -626,8 +653,8 @@ class MainWindow(QMainWindow):
         counts: dict[str, int] = {}
         for it in items:
             counts[it.status] = counts.get(it.status, 0) + 1
-        summary = ", ".join(f"{n}× {STATUS.get(s, (s,))[0]}" for s, n in counts.items()) or "nichts zu tun"
-        self.log(f"{len(items)} Einträge: {summary}")
+        summary = ", ".join(f"{n}× {tr(STATUS.get(s, (s,))[0])}" for s, n in counts.items()) or tr("nichts zu tun")
+        self.log(tr("{n} Einträge: {summary}", n=len(items), summary=summary))
 
     def _retarget(self, table: PlanTable, rows: list[int], lib) -> None:
         """Import the selected rows into another library."""
@@ -639,10 +666,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 errors.append(f"{it.source.name}: {e}")
         if errors:
-            QMessageBox.warning(self, "Ziel-Bibliothek", "\n".join(errors[:10]))
+            QMessageBox.warning(self, tr("Ziel-Bibliothek"), "\n".join(errors[:10]))
         new_row = next((i for i, x in enumerate(table.items) if x.group == first_group), 0)
         table.selectRow(min(new_row, table.rowCount() - 1))
-        self.log(f"{len(items)} Einträge → Bibliothek „{lib.title}“")
+        self.log(tr("{n} Einträge → Bibliothek „{library}“", n=len(items), library=lib.title))
 
     def _rematch(self, table: PlanTable, row: int, import_mode: bool) -> None:
         """Pick a TMDB match by hand - for the row, or for all selected rows at once."""
@@ -661,7 +688,7 @@ class MainWindow(QMainWindow):
         year = it.match.year if it.match else (p.year if p else None)
         context = table._rel(it.source)
         if multi:
-            context = f"{len(targets)} Einträge (u. a. {it.source.name}) – jede Datei behält ihre Staffel/Folge"
+            context = tr("{n} Einträge (u. a. {name}) – jede Datei behält ihre Staffel/Folge", n=len(targets), name=it.source.name)
         dlg = MatchDialog(self.tmdb, it.dialog_kind, query, year,
                           season=p.season if p else None, episodes=p.episodes if p else None,
                           episode_fields=import_mode and not multi, kind_fixed=not import_mode,
@@ -686,24 +713,24 @@ class MainWindow(QMainWindow):
         table.selectRow(min(new_row, table.rowCount() - 1))
         table.details.show_item(table.items[table.currentRow()] if table.currentRow() >= 0 else None)
         if multi:
-            self.log(f"Treffer für {len(done)} Einträge gesetzt.")
+            self.log(tr("Treffer für {n} Einträge gesetzt.", n=len(done)))
 
     def run_plan(self, table: PlanTable) -> None:
         table.sync()
         todo = [it for it in table.items if it.selected and it.ops]
         if not todo:
-            QMessageBox.information(self, "Ausführen", "Nichts ausgewählt.")
+            QMessageBox.information(self, tr("Ausführen"), tr("Nichts ausgewählt."))
             return
         deletions = [it for it in todo if it.kind == "empty"]
         moves = len(todo) - len(deletions)
-        text = f"{moves} Einträge umbenennen/verschieben."
+        text = tr("{n} Einträge umbenennen/verschieben.", n=moves)
         if deletions:
-            text += (f"\n\n{len(deletions)} Ordner werden ENDGÜLTIG gelöscht "
-                     f"(Netzlaufwerk, kein Papierkorb):\n" +
+            text += ("\n\n" + tr("{n} Ordner werden ENDGÜLTIG gelöscht (Netzlaufwerk, kein Papierkorb):",
+                                  n=len(deletions)) + "\n" +
                      "\n".join(f"  • {it.source.name}" for it in deletions[:15]) +
                      ("\n  …" if len(deletions) > 15 else ""))
         icon = QMessageBox.Warning if deletions else QMessageBox.Question
-        box = QMessageBox(icon, "Ausführen", text + "\n\nFortfahren?", QMessageBox.Yes | QMessageBox.No, self)
+        box = QMessageBox(icon, tr("Ausführen"), text + "\n\n" + tr("Fortfahren?"), QMessageBox.Yes | QMessageBox.No, self)
         if box.exec() != QMessageBox.Yes:
             return
 
@@ -720,9 +747,9 @@ class MainWindow(QMainWindow):
                     for msg in Plex(cfg.plex_url, cfg.plex_token).refresh(changed, cfg.library_maps(), full=renamed):
                         w.log.emit(msg)
                 except Exception as e:
-                    w.log.emit(f"Plex-Scan fehlgeschlagen: {e}")
+                    w.log.emit(tr("Plex-Scan fehlgeschlagen: {error}", error=e))
             elif changed:
-                w.log.emit("Kein Plex-Token – Bibliothek bitte manuell scannen.")
+                w.log.emit(tr("Kein Plex-Token – Bibliothek bitte manuell scannen."))
 
         def done(_):
             self._run_table = None
@@ -742,6 +769,27 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("ShelfSort")
     app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "icon.png")))
-    win = MainWindow()
-    win.show()
+    cfg = Config.load()
+    apply_language(cfg.app_language or i18n.system_language())
+    app.main_window = MainWindow()  # kept on the app so a language switch can replace it
+    app.main_window.show()
     sys.exit(app.exec())
+
+
+_qt_translator: QTranslator | None = None
+
+
+def apply_language(lang: str) -> str:
+    """UI language for ShelfSort's texts and Qt's own (Yes/No buttons, file dialogs)."""
+    global _qt_translator
+    lang = i18n.set_language(lang)
+    app = QApplication.instance()
+    if _qt_translator:
+        app.removeTranslator(_qt_translator)
+        _qt_translator = None
+    if lang != "en":  # Qt's built-in texts are English
+        tr_ = QTranslator(app)
+        if tr_.load(f"qtbase_{lang}", QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+            app.installTranslator(tr_)
+            _qt_translator = tr_
+    return lang

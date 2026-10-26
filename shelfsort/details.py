@@ -5,17 +5,22 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
+from . import i18n
+from .i18n import N_, tr
 from .naming import episode_code
 from .plan import PlanItem
 from .posters import PosterLoader
 
 POSTER = QSize(130, 195)
 STILL = QSize(300, 169)
-KIND = {"movie": "Film", "show": "Serie"}
+KIND = {"movie": N_("Film"), "show": N_("Serie")}
 
 
 def _date_de(d: str) -> str:
-    return ".".join(reversed(d.split("-"))) if d else ""
+    """'2026-05-28' -> '28.05.2026' in German, unchanged (ISO) in other UI languages."""
+    if not d:
+        return ""
+    return ".".join(reversed(d.split("-"))) if i18n.language() == "de" else d
 
 
 class DetailsPanel(QScrollArea):
@@ -65,7 +70,7 @@ class DetailsPanel(QScrollArea):
 
         self.source = label(style="color: gray")
         self.note = label()
-        self.rematch = QPushButton("Anderen Treffer wählen…")
+        self.rematch = QPushButton(tr("Anderen Treffer wählen…"))
         self.rematch.clicked.connect(self.rematch_requested)
         self.empty = label(style="color: gray")
 
@@ -101,14 +106,14 @@ class DetailsPanel(QScrollArea):
                   self.ep_header, self.still, self.ep_overview, self.source, self.note):
             w.setVisible(False)
         self.empty.setVisible(True)
-        self.empty.setText(f"{count} Einträge ausgewählt.\nEin Treffer für alle – jede Datei behält ihre "
-                           f"eigene Staffel- und Folgennummer.")
-        self.rematch.setText(f"Treffer für {count} Einträge wählen…")
+        self.empty.setText(tr("{count} Einträge ausgewählt.\nEin Treffer für alle – jede Datei behält ihre "
+                              "eigene Staffel- und Folgennummer.", count=count))
+        self.rematch.setText(tr("Treffer für {count} Einträge wählen…", count=count))
         self.rematch.setVisible(True)
 
     def show_item(self, it: PlanItem | None) -> None:
         self._current = it
-        self.rematch.setText("Anderen Treffer wählen…")
+        self.rematch.setText(tr("Anderen Treffer wählen…"))
         m = it.match if it else None
         info = it.episode_info if it else None
 
@@ -122,28 +127,30 @@ class DetailsPanel(QScrollArea):
         self.empty.setVisible(it is None or m is None)
 
         if it is None:
-            self.empty.setText("Zeile auswählen, um den Treffer zu sehen.")
+            self.empty.setText(tr("Zeile auswählen, um den Treffer zu sehen."))
             return
-        self.source.setText(f"Datei: {it.source.name}")
+        self.source.setText(tr("Datei: {name}", name=it.source.name))
         self.note.setText(it.note)
         if m is None:
-            self.empty.setText("Kein TMDB-Treffer zugeordnet." if it.replan else
-                               "Für diesen Eintrag gibt es keinen TMDB-Treffer (nur Umbenennung).")
+            self.empty.setText(tr("Kein TMDB-Treffer zugeordnet.") if it.replan else
+                               tr("Für diesen Eintrag gibt es keinen TMDB-Treffer (nur Umbenennung)."))
             return
 
-        self.kind.setText(KIND.get(m.kind, m.kind) + ("" if m.confident else "  ·  unsicher"))
+        self.kind.setText((tr(KIND[m.kind]) if m.kind in KIND else m.kind)
+                          + ("" if m.confident else "  ·  " + tr("unsicher")))
         self.title.setText(m.label())
         meta = []
         if m.original_title and m.original_title != m.title:
-            meta.append(f"Original: {m.original_title}")
+            meta.append(tr("Original: {title}", title=m.original_title))
         if m.date:
-            meta.append(("Kinostart " if m.kind == "movie" else "Erstausstrahlung ") + _date_de(m.date))
+            meta.append(tr("Kinostart {date}", date=_date_de(m.date)) if m.kind == "movie" else
+                        tr("Erstausstrahlung {date}", date=_date_de(m.date)))
         if m.vote_count:
-            meta.append(f"★ {m.vote_average:.1f} ({m.vote_count} Bewertungen)")
+            meta.append(tr("★ {rating} ({count} Bewertungen)", rating=f"{m.vote_average:.1f}", count=m.vote_count))
         self.meta.setText("  ·  ".join(meta))
-        self.link.setText(f'<a href="{m.url()}">Auf TMDB ansehen</a>  ·  tmdb-{m.tmdb_id}')
-        self.overview.setText(m.overview or "Keine Beschreibung vorhanden.")
-        self._image(self.poster, m.poster_path, "w342", POSTER, "kein Cover")
+        self.link.setText(tr('<a href="{url}">Auf TMDB ansehen</a>', url=m.url()) + f"  ·  tmdb-{m.tmdb_id}")
+        self.overview.setText(m.overview or tr("Keine Beschreibung vorhanden."))
+        self._image(self.poster, m.poster_path, "w342", POSTER, tr("kein Cover"))
 
         if info is not None:
             p = it.parsed
@@ -151,14 +158,14 @@ class DetailsPanel(QScrollArea):
             num = info.get("episode_number")
             code = episode_code(season, [num]) if season is not None and num is not None else ""
             date = _date_de(info.get("air_date") or "")
-            src = "  ·  laut Plex" if info.get("source") == "Plex" else ""
-            self.ep_header.setText(f"Folge {code} – {info.get('name') or '?'}" + (f"  ({date})" if date else "") + src)
-            self.ep_overview.setText(info.get("overview") or "Keine Beschreibung vorhanden.")
-            self._image(self.still, info.get("still_url") or info.get("still_path"), "w300", STILL, "kein Bild")
+            src = "  ·  " + tr("laut Plex") if info.get("source") == "Plex" else ""
+            self.ep_header.setText(tr("Folge {code} – {name}", code=code, name=info.get("name") or "?") + (f"  ({date})" if date else "") + src)
+            self.ep_overview.setText(info.get("overview") or tr("Keine Beschreibung vorhanden."))
+            self._image(self.still, info.get("still_url") or info.get("still_path"), "w300", STILL, tr("kein Bild"))
 
     def _image(self, target: QLabel, path: str | None, size: str, box: QSize, missing: str) -> None:
         target.clear()
-        target.setText(missing if not path else "lädt …")
+        target.setText(missing if not path else tr("lädt …"))
         it = self._current
         self.posters.load(path, size, lambda pix: self._current is it and
                           target.setPixmap(pix.scaled(box, Qt.KeepAspectRatio, Qt.SmoothTransformation)))

@@ -9,9 +9,11 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QHBoxLay
                                QPlainTextEdit, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
+from .i18n import N_, tr
 from .plex_sync import OrderingOption, SpecialsReport
 
-COLS = ["", "Serie", "Aktuelle Reihenfolge", "Specials", "Neue Reihenfolge", "Im Ablauf", "Bleiben Special", "Fehlen"]
+COLS = ["", N_("Serie"), N_("Aktuelle Reihenfolge"), N_("Specials"), N_("Neue Reihenfolge"), N_("Im Ablauf"),
+        N_("Bleiben Special"), N_("Fehlen")]
 GOOD = QColor(46, 160, 67, 70)
 WARN = QColor(210, 153, 34, 80)
 
@@ -24,14 +26,14 @@ class SpecialsTab(QWidget):
         super().__init__(parent)
         self.reports: list[SpecialsReport] = []
 
-        intro = QLabel("Specials in Staffel 0 überspringt Plex bei „Weiter schauen“. Manche Episoden-Reihenfolgen "
-                       "(z. B. TheTVDB DVD oder BBC iPlayer) sortieren sie in die normalen Staffeln ein. Hier siehst "
-                       "du pro Serie, welche Reihenfolge wie viele Specials in den Ablauf bringt.")
+        intro = QLabel(tr("Specials in Staffel 0 überspringt Plex bei „Weiter schauen“. Manche Episoden-Reihenfolgen "
+                          "(z. B. TheTVDB DVD oder BBC iPlayer) sortieren sie in die normalen Staffeln ein. Hier siehst "
+                          "du pro Serie, welche Reihenfolge wie viele Specials in den Ablauf bringt."))
         intro.setWordWrap(True)
-        self.only_better = QCheckBox("Nur Serien, bei denen eine Reihenfolge hilft")
+        self.only_better = QCheckBox(tr("Nur Serien, bei denen eine Reihenfolge hilft"))
         self.only_better.setChecked(True)
         self.only_better.toggled.connect(lambda _: self._fill())
-        self.scan_btn = QPushButton("Serien prüfen")
+        self.scan_btn = QPushButton(tr("Serien prüfen"))
         self.scan_btn.clicked.connect(lambda: self.scan_requested.emit(True))
         top = QHBoxLayout()
         top.addWidget(self.only_better)
@@ -39,7 +41,7 @@ class SpecialsTab(QWidget):
         top.addWidget(self.scan_btn)
 
         self.table = QTableWidget(0, len(COLS))
-        self.table.setHorizontalHeaderLabels(COLS)
+        self.table.setHorizontalHeaderLabels([tr(c) for c in COLS])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -57,11 +59,11 @@ class SpecialsTab(QWidget):
         split.addWidget(self.details)
         split.setSizes([420, 200])
 
-        self.apply_btn = QPushButton("Reihenfolge in Plex umstellen")
+        self.apply_btn = QPushButton(tr("Reihenfolge in Plex umstellen"))
         self.apply_btn.setMinimumWidth(220)
         self.apply_btn.clicked.connect(self._apply)
-        hint = QLabel("Danach prüft das Tool die umgestellten Serien mit dem Plex-Abgleich und schlägt die "
-                      "neuen Dateinummern vor.")
+        hint = QLabel(tr("Danach prüft das Tool die umgestellten Serien mit dem Plex-Abgleich und schlägt die "
+                         "neuen Dateinummern vor."))
         hint.setStyleSheet("color: gray")
         bottom = QHBoxLayout()
         bottom.addWidget(hint, 1)
@@ -96,13 +98,13 @@ class SpecialsTab(QWidget):
             check.setData(Qt.UserRole, rep)
             self.table.setItem(r, 0, check)
             self.table.setItem(r, 1, QTableWidgetItem(rep.show.title))
-            current = rep.show.label(rep.show.ordering) + ("" if rep.show.own_ordering else " (Standard)")
+            current = rep.show.label(rep.show.ordering) + ("" if rep.show.own_ordering else " " + tr("(Standard)"))
             self.table.setItem(r, 2, QTableWidgetItem(current))
             self.table.setItem(r, 3, QTableWidgetItem(str(len(rep.specials))))
             combo = QComboBox()
-            combo.addItem("– unverändert –", None)
+            combo.addItem(tr("– unverändert –"), None)
             for opt in rep.options:
-                combo.addItem(f"{opt.label}  ({len(opt.in_flow)} im Ablauf)", opt)
+                combo.addItem(tr("{label}  ({count} im Ablauf)", label=opt.label, count=len(opt.in_flow)), opt)
             best = rep.best
             if best:
                 combo.setCurrentIndex(rep.options.index(best) + 1)
@@ -140,20 +142,21 @@ class SpecialsTab(QWidget):
             return
         rep: SpecialsReport = self.table.item(row, 0).data(Qt.UserRole)
         opt = self._option(row)
-        lines = [f"{rep.show.title} – {len(rep.specials)} Specials mit „{rep.show.label(rep.show.ordering)}“:"]
+        lines = [tr("{title} – {count} Specials mit „{ordering}“:", title=rep.show.title, count=len(rep.specials),
+                    ordering=rep.show.label(rep.show.ordering))]
         lines += [f"   {s}" for s in rep.specials]
         if opt:
             lines.append("")
-            lines.append(f"Mit „{opt.label}“:")
+            lines.append(tr("Mit „{label}“:", label=opt.label))
             if opt.in_flow:
-                lines.append(f"  Im Ablauf ({len(opt.in_flow)}):")
+                lines.append("  " + tr("Im Ablauf ({count}):", count=len(opt.in_flow)))
                 lines += [f"     {s}" for s in opt.in_flow]
             if opt.still_special:
-                lines.append(f"  Bleiben Special ({len(opt.still_special)}):")
+                lines.append("  " + tr("Bleiben Special ({count}):", count=len(opt.still_special)))
                 lines += [f"     {s}" for s in opt.still_special]
             if opt.missing:
-                lines.append(f"  ACHTUNG – gibt es in dieser Reihenfolge nicht ({len(opt.missing)}). "
-                             f"Hast du Dateien dafür, kann Plex sie danach nicht mehr zuordnen:")
+                lines.append("  " + tr("ACHTUNG – gibt es in dieser Reihenfolge nicht ({count}). Hast du Dateien dafür, "
+                                    "kann Plex sie danach nicht mehr zuordnen:", count=len(opt.missing)))
                 lines += [f"     {s}" for s in opt.missing]
         self.details.setPlainText("\n".join(lines))
 

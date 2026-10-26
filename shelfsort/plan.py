@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from .i18n import tr
 from .matcher import Match
 from .parse import Parsed, companion_target, companions
 
@@ -68,7 +69,7 @@ def finalize(items: list[PlanItem]) -> list[PlanItem]:
         if key in seen:
             for x in (seen[key], it):
                 x.status = "conflict"
-                x.add_note("Mehrere Dateien mit gleichem Ziel")
+                x.add_note(tr("Mehrere Dateien mit gleichem Ziel"))
         else:
             seen[key] = it
     for it in items:

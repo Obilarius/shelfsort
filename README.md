@@ -94,6 +94,10 @@ Angehakte Serien → „Reihenfolge in Plex umstellen“: stellt die Reihenfolge
 - **Plex:** ShelfSort spricht mit deinem eigenen Plex Media Server. Für den Plex-Abgleich, den Specials-Check und Folgentitel in Plex-Reihenfolge nutzt es zusätzlich Plex' Metadatendienst (`metadata.provider.plex.tv`). Dieser Dienst ist **nicht offiziell dokumentiert** und kann sich jederzeit ändern. Fällt er aus, kommen Folgentitel von TMDB und der Plex-Abgleich wird mit einem Hinweis übersprungen – Import und Namensprüfung laufen weiter.
 - **Lizenz:** MIT, siehe `LICENSE`. Verwendete Bibliotheken und ihre Lizenzen: `THIRD_PARTY_LICENSES.md`.
 
+## Sprachen der Oberfläche
+
+Deutsch und Englisch; beim ersten Start passend zu Windows, später im Assistenten umstellbar (ohne Neustart). Im Code steht der deutsche Text (`tr("Abbrechen")`), die Übersetzungen liegen in `shelfsort/i18n/<sprache>.json`. Eine neue Sprache: `en.json` kopieren, übersetzen und in `shelfsort/i18n.py` bei `LANGUAGES` eintragen. Der Test `tests/test_i18n.py` prüft, dass jeder Text im Code übersetzt ist und die Platzhalter stimmen.
+
 ## Programm bauen
 
 ```

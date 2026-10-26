@@ -6,6 +6,8 @@ import time
 
 import requests
 
+from .i18n import tr
+
 PLACEHOLDER_TITLE = re.compile(r"^(episode|folge|episodio|épisode)\s*\d+$", re.IGNORECASE)
 
 
@@ -18,7 +20,7 @@ class TMDB:
 
     def __init__(self, api_key: str, language: str = "de-DE", session: requests.Session | None = None):
         if not api_key:
-            raise TMDBError("Kein TMDB-API-Key hinterlegt (Einstellungen).")
+            raise TMDBError(tr("Kein TMDB-API-Key hinterlegt (Einstellungen)."))
         self.s = session or requests.Session()
         self.key: str | None = api_key
         if len(api_key) > 40:  # v4 read access token
@@ -53,7 +55,7 @@ class TMDB:
                 break
             time.sleep(float(r.headers.get("Retry-After", 1)))
         if r.status_code == 401:
-            raise TMDBError("TMDB-API-Key ungültig.")
+            raise TMDBError(tr("TMDB-API-Key ungültig."))
         if r.status_code == 404:
             data = None
         else:

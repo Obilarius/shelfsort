@@ -39,7 +39,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 4. Flexibilität
 
-- [ ] **Englische Oberfläche** + Übersetzungsmöglichkeit (Qt-Übersetzungen oder einfache String-Tabelle); Sprache der Metadaten einstellbar (jetzt fest `de-DE`).
+- [x] **Englische Oberfläche** – `tr()` mit Übersetzungen in `shelfsort/i18n/en.json` (300 Texte), Qt-eigene Texte übersetzt, Sprache nach Windows, Wechsel ohne Neustart; Test prüft Vollständigkeit.
+- [ ] Englische Texte einmal in Ruhe durchklicken und Formulierungen glätten (vor allem Hinweise in der Tabelle).
 - [ ] **Namensschema einstellbar**: Serienordner mit/ohne Jahr, `Season`/`Staffel`, ID-Format (`{tmdb-}`, `{tvdb-}`, `{imdb-}`), Episodentitel ja/nein.
 - [x] **Mehrere Bibliotheken pro Typ** – im Assistenten anhaken, je ein Standard für Filme und Serien, Ziel per Rechtsklick; Prüfung, Plex-Abgleich, Specials und Scan über alle.
 - [ ] **Weitere Fälle**: Anime mit absoluter Nummerierung, Filme mit Edition (`{edition-…}`), 3D, Extras-Ordner, mehrteilige Filme testen.

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .i18n import tr
 from .matcher import norm
 from .naming import SEASON_DIR_RE, season_folder, strip_ids, title_of, tmdb_id_of
 
 
 def list_dirs(root: Path) -> list[Path]:
     if not root.is_dir():
-        raise FileNotFoundError(f"Bibliotheksordner nicht erreichbar: {root}")
+        raise FileNotFoundError(tr("Bibliotheksordner nicht erreichbar: {path}", path=root))
     return sorted((d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")),
                   key=lambda d: d.name.lower())
 
@@ -39,7 +40,7 @@ class Library:
     def from_config(cls, cfg) -> "Library":
         movie, show = cfg.default_lib("movie"), cfg.default_lib("show")
         if not movie or not show:
-            raise RuntimeError("Bitte zuerst eine Filme- und eine Serien-Bibliothek einrichten (Menü „Einrichten“).")
+            raise RuntimeError(tr("Bitte zuerst eine Filme- und eine Serien-Bibliothek einrichten (Menü „Einrichten“)."))
         return cls(movie.path, show.path, [lib.path for lib in cfg.libs_of("movie")],
                    [lib.path for lib in cfg.libs_of("show")],
                    {str(lib.path).lower(): lib.title for lib in cfg.libs},

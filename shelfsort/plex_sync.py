@@ -13,6 +13,7 @@ from pathlib import Path
 
 import requests
 
+from .i18n import N_, tr
 from .matcher import norm
 from .naming import episode_code
 from .plex import LibraryMap, Plex
@@ -23,8 +24,8 @@ _PLACEHOLDER = re.compile(r"^(episode|folge)\s*\d+$", re.IGNORECASE)
 
 # The library-wide setting uses older names: "aired" is TheTVDB, not TMDB.
 LIBRARY_ORDERING = {"aired": "tvdbAiring", "dvd": "tvdbDvd", "absolute": "tvdbAbsolute", "tmdbAiring": "tmdbAiring"}
-ORDERING_LABELS = {"tmdbAiring": "TMDB (Ausstrahlung)", "tvdbAiring": "TheTVDB (Ausstrahlung)",
-                   "tvdbDvd": "TheTVDB (DVD)", "tvdbAbsolute": "TheTVDB (Absolut)"}
+ORDERING_LABELS = {"tmdbAiring": N_("TMDB (Ausstrahlung)"), "tvdbAiring": N_("TheTVDB (Ausstrahlung)"),
+                   "tvdbDvd": N_("TheTVDB (DVD)"), "tvdbAbsolute": N_("TheTVDB (Absolut)")}
 
 
 @dataclass
@@ -60,7 +61,7 @@ class PlexShow:
     episodes: list[PlexEpisode] = field(default_factory=list)
 
     def label(self, value: str) -> str:
-        return dict(self.options).get(value) or ORDERING_LABELS.get(value, value)
+        return dict(self.options).get(value) or (tr(ORDERING_LABELS[value]) if value in ORDERING_LABELS else value)
 
 
 @dataclass
@@ -117,7 +118,7 @@ def _parse_enum(enum: str) -> list[tuple[str, str]]:
     for part in (enum or "").split("|"):
         value, _, label = part.partition(":")
         if value:
-            out.append((value, ORDERING_LABELS.get(value, label)))
+            out.append((value, tr(ORDERING_LABELS[value]) if value in ORDERING_LABELS else label))
     return out
 
 
@@ -150,7 +151,7 @@ class PlexCatalog:
                 r.raise_for_status()
                 mc = r.json().get("MediaContainer", {})
             except (requests.RequestException, ValueError) as e:
-                raise ProviderError(f"Plex-Metadatendienst nicht erreichbar oder verändert ({e})") from e
+                raise ProviderError(tr("Plex-Metadatendienst nicht erreichbar oder verändert ({error})", error=e)) from e
             page = mc.get("Metadata", [])
             items += page
             if not page or len(items) >= int(mc.get("totalSize") or 0):
@@ -166,8 +167,8 @@ class PlexCatalog:
             section = next((s for s in self._sections
                             if s["type"] == "show" and any(Plex._basename(l) == name for l in s["locations"])), None)
         if not section:
-            raise RuntimeError(f"Keine Plex-Serienbibliothek für „{lib.local_root}“ gefunden – bitte im "
-                               f"Einrichtungsassistenten zuordnen.")
+            raise RuntimeError(tr("Keine Plex-Serienbibliothek für „{root}“ gefunden – bitte im "
+                                  "Einrichtungsassistenten zuordnen.", root=lib.local_root))
         return section
 
     @staticmethod

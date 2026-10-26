@@ -69,6 +69,7 @@ def run_pyinstaller() -> None:
         "--distpath", str(DIST), "--workpath", str(BUILD / "pyinstaller"), "--specpath", str(BUILD),
         "--paths", str(ROOT),
         "--add-data", f"{ROOT / 'shelfsort' / 'assets'}{sep}shelfsort/assets",
+        "--add-data", f"{ROOT / 'shelfsort' / 'i18n'}{sep}shelfsort/i18n",
         # guessit/babelfish read data files and load plugins dynamically
         "--collect-data", "guessit", "--collect-data", "babelfish",
         "--collect-submodules", "guessit", "--collect-submodules", "babelfish", "--collect-submodules", "rebulk",

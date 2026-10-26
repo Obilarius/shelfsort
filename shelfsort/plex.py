@@ -7,6 +7,8 @@ from pathlib import Path
 
 import requests
 
+from .i18n import tr
+
 
 @dataclass
 class LibraryMap:
@@ -95,17 +97,17 @@ class Plex:
                 continue
             targets = self._targets(lib, sections)
             if not targets:
-                msgs.append(f"Keine Plex-Bibliothek für „{root}“ gefunden – bitte in den Einstellungen zuordnen "
-                            f"oder manuell scannen.")
+                msgs.append(tr("Keine Plex-Bibliothek für „{root}“ gefunden – bitte in den Einstellungen zuordnen "
+                               "oder manuell scannen.", root=root))
                 continue
             for s, server_root in targets:
                 if full:
                     self._get(f"/library/sections/{s['key']}/refresh")
-                    msgs.append(f"Plex: Bibliothek „{s['title']}“ wird komplett gescannt")
+                    msgs.append(tr("Plex: Bibliothek „{library}“ wird komplett gescannt", library=s['title']))
                     continue
                 tops = {root / p.relative_to(root).parts[0] for p in mine if p != root}
                 for top in sorted(tops):
                     self._get(f"/library/sections/{s['key']}/refresh",
                               path=self._join(server_root, top.relative_to(root)))
-                    msgs.append(f"Plex: scanne {s['title']} › {top.name}")
+                    msgs.append(tr("Plex: scanne {library} › {folder}", library=s['title'], folder=top.name))
         return msgs

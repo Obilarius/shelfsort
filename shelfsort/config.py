@@ -9,6 +9,7 @@ import uuid
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+from .i18n import N_, tr
 from .plex import LibraryMap
 
 # Windows: %APPDATA%, Linux: $XDG_CONFIG_HOME or ~/.config, macOS: ~/Library/Application Support
@@ -21,20 +22,22 @@ else:
 CONFIG_PATH = _APPDATA / "ShelfSort" / "config.json"
 _OLD_CONFIG_PATH = _APPDATA / "plex-renamer" / "config.json"  # before the rename to ShelfSort
 
-KINDS = {"movie": "Filme", "show": "Serien"}
+KINDS = {"movie": N_("Filme"), "show": N_("Serien")}  # German values are also saved as default titles
 
 # languages offered for titles/descriptions (TMDB and Plex language codes)
 METADATA_LANGUAGES = [
-    ("de-DE", "Deutsch"), ("en-US", "Englisch (USA)"), ("en-GB", "Englisch (UK)"), ("fr-FR", "Französisch"),
-    ("es-ES", "Spanisch"), ("it-IT", "Italienisch"), ("nl-NL", "Niederländisch"), ("pl-PL", "Polnisch"),
-    ("pt-BR", "Portugiesisch (Brasilien)"), ("sv-SE", "Schwedisch"), ("da-DK", "Dänisch"),
-    ("nb-NO", "Norwegisch"), ("fi-FI", "Finnisch"), ("cs-CZ", "Tschechisch"), ("tr-TR", "Türkisch"),
-    ("ja-JP", "Japanisch"),
+    ("de-DE", N_("Deutsch")), ("en-US", N_("Englisch (USA)")), ("en-GB", N_("Englisch (UK)")),
+    ("fr-FR", N_("Französisch")), ("es-ES", N_("Spanisch")), ("it-IT", N_("Italienisch")),
+    ("nl-NL", N_("Niederländisch")), ("pl-PL", N_("Polnisch")), ("pt-BR", N_("Portugiesisch (Brasilien)")),
+    ("sv-SE", N_("Schwedisch")), ("da-DK", N_("Dänisch")), ("nb-NO", N_("Norwegisch")),
+    ("fi-FI", N_("Finnisch")), ("cs-CZ", N_("Tschechisch")), ("tr-TR", N_("Türkisch")),
+    ("ja-JP", N_("Japanisch")),
 ]
 
 
 def language_name(code: str) -> str:
-    return dict(METADATA_LANGUAGES).get(code, code)
+    name = dict(METADATA_LANGUAGES).get(code)
+    return tr(name) if name else code
 
 
 @dataclass
@@ -59,7 +62,7 @@ class LibraryConfig:
 @dataclass
 class Config:
     tmdb_key: str = ""
-    app_language: str = "de"  # user interface (only German so far)
+    app_language: str = ""  # user interface; "" = system language
     language: str = "de-DE"  # metadata: titles/descriptions from TMDB and Plex
     plex_url: str = "http://localhost:32400"
     plex_token: str = ""
