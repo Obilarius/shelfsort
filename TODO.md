@@ -47,8 +47,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 5. Sicherheit & Stabilität
 
-- [ ] **Rückgängig-Funktion** mit dauerhaftem Protokoll (jede Umbenennung/Verschiebung als Eintrag, „letzten Lauf rückgängig machen“).
-- [ ] **Log-Datei** in `%APPDATA%` und Knopf „Log öffnen“ – für Support-Anfragen.
+- [x] **Rückgängig-Funktion** – jeder Lauf wird sofort mitgeschrieben (`%APPDATA%\ShelfSort\history`, die letzten 50); **Verlauf** zeigt die Läufe und macht einen rückgängig. Seitdem Verändertes wird übersprungen, gelöschte leere Ordner neu angelegt, Papierkorb nur als Hinweis.
+- [x] **Log-Datei** `%APPDATA%\ShelfSort\logs\shelfsort.log` (1 MB, 3 alte Stände) mit allem aus dem Log-Fenster, Fehlerdetails und Abstürzen; Knopf „Log-Datei öffnen“ im Verlauf.
 - [ ] **Randfälle**: Pfade über 260 Zeichen, Netzabbruch während der Kopie, fehlende Schreibrechte, volle Platte (vor dem Kopieren freien Platz prüfen).
 - [ ] **Große Bibliotheken**: Prüfung mit tausenden Folgen testen, Abbrechen auch beim Scannen.
 - [ ] **Mehr Tests** mit echten Release-Namen-Mustern (anonymisiert).

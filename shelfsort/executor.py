@@ -10,6 +10,7 @@ from typing import Callable
 
 from send2trash import send2trash
 
+from .history import Journal
 from .i18n import tr
 from .parse import has_video, walk_videos
 from .plan import PlanItem
@@ -39,8 +40,9 @@ class Reporter:
     def __init__(self, log: Callable[[str], None] | None = None,
                  transfer: Callable[[TransferInfo], None] | None = None,
                  item_state: Callable[[PlanItem, str], None] | None = None,
-                 cancel: threading.Event | None = None):
+                 cancel: threading.Event | None = None, journal: Journal | None = None):
         self.log = log or (lambda s: None)
+        self.journal = journal or Journal()  # records every change for undo
         self.transfer = transfer or (lambda info: None)
         self.item_state = item_state or (lambda it, state: None)
         self.cancel = cancel or threading.Event()
@@ -156,6 +158,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 src, dst = fix(op.src), fix(op.dst)
                 _check_free(src, dst)
                 os.rename(src, dst)
+                rep.journal.renamed(src, dst)
                 fix.add(src, dst)
                 touched.add(dst)
                 rep.log(tr("Ordner: {old} → {new}", old=src.name, new=dst.name))
@@ -172,6 +175,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         if str(src).lower() in targets and str(src).lower() != str(fix(o.dst)).lower():
             tmp = src.with_name(src.name + ".shelfsort-tmp")
             os.rename(src, tmp)
+            rep.journal.renamed(src, tmp)
             parked[id(o)] = (src, tmp)
 
     def source(o):
@@ -202,6 +206,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 progress(0, size)
                 # Only the main video may be cancelled mid-copy; subtitles follow it.
                 move_file(src, dst, progress, rep.check if i == 0 else None)
+                rep.journal.moved(src, dst, size)
                 parked.pop(id(op), None)
                 if cross:
                     base += size
@@ -225,6 +230,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         try:
             if tmp.exists() and not orig.exists():
                 os.rename(tmp, orig)
+                rep.journal.renamed(tmp, orig)
             elif tmp.exists():
                 rep.log(tr("ACHTUNG: {temp} konnte nicht zurückbenannt werden ({name} ist belegt)",
                            temp=tmp.name, name=orig.name))
@@ -238,7 +244,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
     for it in ([] if cancelled else todo):
         if it.status == "error":
             continue
-        dels =[o for o in it.ops if o.kind == "delete_dir"]
+        dels = [o for o in it.ops if o.kind == "delete_dir"]
         if not dels:
             continue
         try:
@@ -247,6 +253,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 if has_video(path):
                     raise RuntimeError(tr("Ordner enthält inzwischen ein Video – nicht gelöscht"))
                 shutil.rmtree(path)
+                rep.journal.deleted(path)
                 rep.log(tr("Gelöscht: {path}", path=path))
             it.status, it.selected = "done", False
             rep.item_state(it, "done")
@@ -267,6 +274,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         if d.exists() and not walk_videos(d, skip_extras=False):  # samples don't count
             try:
                 send2trash(str(d))
+                rep.journal.trashed(d)
                 rep.log(tr("Aufgeräumt (Papierkorb): {name}", name=d.name))
             except Exception as e:
                 rep.log(tr("Konnte {path} nicht aufräumen: {error}", path=d, error=e))

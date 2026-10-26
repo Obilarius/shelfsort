@@ -14,12 +14,15 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFile
                                QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
+from . import history
+from .applog import log as file_log, setup as setup_log
 from .audit import AuditOptions, build_audit_plan
 from .config import KINDS, Config
 from .details import DetailsPanel
 from .dialogs import SettingsDialog, show_about
 from .match_dialog import MatchDialog
-from .executor import Reporter, TransferInfo, execute
+from .executor import Reporter, TransferInfo, execute, move_file
+from .history_dialog import HistoryDialog
 from . import i18n
 from .i18n import N_, tr
 from .importer import build_import_plan
@@ -64,6 +67,7 @@ class Worker(QObject):
         try:
             self.finished.emit(self.fn(self))
         except Exception:
+            file_log.exception("Fehler im Hintergrund")
             self.failed.emit(traceback.format_exc(limit=3))
 
 
@@ -184,6 +188,9 @@ class MainWindow(QMainWindow):
         settings = QAction(tr("Einstellungen"), self)
         settings.triggered.connect(self.open_settings)
         self.menuBar().addAction(settings)
+        hist = QAction(tr("Verlauf"), self)
+        hist.triggered.connect(self.open_history)
+        self.menuBar().addAction(hist)
         about = QAction(tr("Über"), self)
         about.triggered.connect(lambda: show_about(self))
         self.menuBar().addAction(about)
@@ -412,6 +419,7 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
+        file_log.info(text)
 
     def _services(self) -> tuple[TMDB, Library]:
         lib = Library.from_config(self.cfg)
@@ -761,21 +769,22 @@ class MainWindow(QMainWindow):
             return
 
         cfg = self.cfg
+        if table is self.import_table and self.import_root:
+            title = tr("Import: {folder}", folder=self.import_root.name)
+        else:
+            title = tr("Bibliothek prüfen")
         cancel = self._cancel = threading.Event()
         self._run_table = table
         self.panel.start(len(todo))
 
         def work(w: Worker):
-            rep = Reporter(w.log.emit, w.transfer.emit, w.item_state.emit, cancel)
-            changed, renamed = execute(table.items, rep, cfg.roots)
-            if changed and cfg.plex_token:
-                try:
-                    for msg in Plex(cfg.plex_url, cfg.plex_token).refresh(changed, cfg.library_maps(), full=renamed):
-                        w.log.emit(msg)
-                except Exception as e:
-                    w.log.emit(tr("Plex-Scan fehlgeschlagen: {error}", error=e))
-            elif changed:
-                w.log.emit(tr("Kein Plex-Token – Bibliothek bitte manuell scannen."))
+            journal = history.Journal(history.HISTORY_DIR, title)
+            rep = Reporter(w.log.emit, w.transfer.emit, w.item_state.emit, cancel, journal)
+            try:
+                changed, renamed = execute(table.items, rep, cfg.roots)
+            finally:
+                journal.close()
+            self._plex_refresh(w, changed, renamed)
 
         def done(_):
             self._run_table = None
@@ -786,12 +795,54 @@ class MainWindow(QMainWindow):
 
         self.run_task(work, done, statusbar=False)
 
+    def _plex_refresh(self, w: Worker, changed: set[Path], full: bool) -> None:
+        """Runs in the worker thread after files changed."""
+        cfg = self.cfg
+        if changed and cfg.plex_token:
+            try:
+                for msg in Plex(cfg.plex_url, cfg.plex_token).refresh(changed, cfg.library_maps(), full=full):
+                    w.log.emit(msg)
+            except Exception as e:
+                w.log.emit(tr("Plex-Scan fehlgeschlagen: {error}", error=e))
+        elif changed:
+            w.log.emit(tr("Kein Plex-Token – Bibliothek bitte manuell scannen."))
+
+    # --- history ---
+
+    def open_history(self) -> None:
+        dlg = HistoryDialog(self, busy=self._thread is not None)
+        dlg.undo_requested.connect(self.undo_run)
+        dlg.exec()
+
+    def undo_run(self, run: history.Run) -> None:
+        roots = self.cfg.roots
+        self.log(tr("Rückgängig: Lauf vom {when} ({title})", when=run.when(), title=run.title))
+
+        def work(w: Worker):
+            changed, ok, skipped = history.undo(run, w.log.emit, roots, move_file)
+            renamed_dirs = any(e["op"] == "rename" and Path(e["src"]).is_dir() for e in run.changes)
+            self._plex_refresh(w, changed, renamed_dirs)
+            return ok, skipped
+
+        def done(result):
+            ok, skipped = result
+            text = tr("{ok} Änderungen rückgängig gemacht, {skipped} übersprungen.", ok=ok, skipped=skipped)
+            self.log(text)
+            for table in (self.import_table, self.audit_table):
+                if table.items:
+                    text += "\n\n" + tr("Die Listen sind jetzt veraltet – bitte neu scannen bzw. prüfen.")
+                    break
+            (QMessageBox.warning if skipped else QMessageBox.information)(self, tr("Rückgängig machen"), text)
+
+        self.run_task(work, done)
+
 
 def main() -> None:
     if sys.platform == "win32":
         # own taskbar identity, so Windows shows ShelfSort's icon instead of Python's
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ShelfSort.App")
+    setup_log()
     app = QApplication(sys.argv)
     app.setApplicationName("ShelfSort")
     app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "icon.png")))

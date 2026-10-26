@@ -62,6 +62,17 @@ Falscher Treffer → Doppelklick oder „Anderen Treffer wählen…“: TMDB-Suc
 
 Während der Übertragung zeigt ein Panel oben Gesamt- und Dateifortschritt, Geschwindigkeit und Restzeit; die Tabelle zeigt live, welche Zeile läuft. „Abbrechen“ verwirft die laufende Kopie, das Original bleibt, der Rest wird nicht angefasst.
 
+## Verlauf und Rückgängig
+
+Jeder Lauf („Übertragen“ bzw. „Ausführen“) wird Schritt für Schritt mitgeschrieben – auch wenn das Programm mittendrin abstürzt. **Verlauf** im Menü zeigt die letzten 50 Läufe mit allen Änderungen; „Rückgängig machen“ bringt Dateien und Ordner zurück an ihren alten Platz und lässt Plex neu scannen.
+
+- Was sich seitdem verändert hat (Datei weg, anders groß, alter Platz belegt), wird übersprungen und gemeldet, nie überschrieben.
+- Gelöschte leere Ordner werden neu angelegt, ihr alter Inhalt (z. B. `poster.jpg`) ist weg.
+- Release-Ordner, die in den Papierkorb gingen, stellt man dort wieder her; die Videos selbst landen auch ohne das wieder im (neu angelegten) Ordner.
+- Ordner, die durch das Rückgängigmachen leer werden, verschwinden – nur innerhalb der Bibliotheken.
+
+Alles aus dem Log-Fenster plus Fehlerdetails steht zusätzlich in `%APPDATA%\ShelfSort\logs\shelfsort.log` („Log-Datei öffnen“ im Verlauf) – praktisch für Fehlermeldungen.
+
 ## Bibliothek prüfen
 
 Oben die **Bibliotheken** anhaken, die geprüft werden sollen (alle verwalteten stehen dort, z. B. „Disney (Filme)“, „Filme“, „Serien“). Geprüft wird:
@@ -94,6 +105,7 @@ Angehakte Serien → „Reihenfolge in Plex umstellen“: stellt die Reihenfolge
 | `gui.py`, `details.py`, `match_dialog.py`, `transfer_panel.py`, `specials_tab.py`, `dialogs.py` | Oberfläche |
 | `importer.py`, `audit.py` | Plan für Import bzw. Bibliotheksprüfung |
 | `executor.py` | Ausführen: Umbenennen, Kopieren, Löschen, Aufräumen |
+| `history.py`, `history_dialog.py`, `applog.py` | Verlauf, Rückgängig, Log-Datei |
 | `parse.py`, `naming.py`, `matcher.py` | Release-Namen zerlegen, Namensschema, TMDB-Treffer bewerten |
 | `tmdb.py`, `plex.py`, `plex_sync.py`, `posters.py` | TMDB, Plex-Scan, Plex-Folgenlisten und Reihenfolgen, Bilder |
 
