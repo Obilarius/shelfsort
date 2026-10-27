@@ -64,6 +64,10 @@ class Journal:
     def deleted(self, path: Path) -> None:
         self._record("delete_dir", path=path)
 
+    def deleted_file(self, path: Path) -> None:
+        """Leftover .partial - nothing to restore, the original never went away."""
+        self._record("delete_file", path=path)
+
     def trashed(self, path: Path) -> None:
         self._record("trash", path=path)
 
@@ -136,6 +140,8 @@ def describe(e: dict) -> str:
         return tr("Papierkorb: {path}", path=e["path"])
     if op == "create":
         return tr("Angelegt: {path}", path=e["path"])
+    if op == "delete_file":
+        return tr("Gelöscht: {path}", path=e["path"])
     return str(e)
 
 

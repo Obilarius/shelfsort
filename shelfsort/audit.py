@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,6 +60,8 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
                 progress(tr("Prüfe {parent}\\{name}", parent=d.parent.name, name=d.name), i, len(jobs))
             except ScanCancelled:
                 break  # keep the folders checked so far
+        if opts.empty:
+            items += leftover_items(d)
         language = lib.language_of(d)  # each library may use its own title language (e.g. OV)
         t = localized(tmdb, language)
         try:
@@ -93,6 +96,45 @@ def _dir_stats(d: Path) -> str:
     if count == 0:
         return tr("leer")
     return tr("{count} Datei(en), {size} MB, kein Video", count=count, size=f"{size / 1024 / 1024:.1f}")
+
+
+PARTIAL, PARKED = ".partial", ".shelfsort-tmp"
+STILL_COPYING = 15 * 60  # a .partial younger than this may be a transfer that is still running
+
+
+def leftover_items(d: Path, now: float | None = None) -> list[PlanItem]:
+    """What an interrupted transfer left behind (network gone, crash):
+
+    - "X.mkv.partial": an incomplete copy - the original was never deleted, so this can go.
+    - "X.mkv.shelfsort-tmp": a complete file parked during chained renames - gets its name back.
+    """
+    now = now or time.time()
+    items = []
+    for dirpath, _, files in os.walk(d):
+        for f in sorted(files):
+            p = Path(dirpath) / f
+            low = f.lower()
+            if low.endswith(PARTIAL) and len(f) > len(PARTIAL):
+                try:
+                    st = p.stat()
+                except OSError:
+                    continue
+                if now - st.st_mtime < STILL_COPYING:
+                    continue
+                items.append(PlanItem("leftover", p, f"{p}|leftover", status="review",
+                                      note=tr("Unvollständige Kopie einer abgebrochenen Übertragung ({size} MB) "
+                                              "– das Original wurde nicht gelöscht", size=f"{st.st_size / 1024 / 1024:.0f}"),
+                                      ops=[Op("delete_file", p)]))
+            elif low.endswith(PARKED) and len(f) > len(PARKED):
+                orig = p.with_name(f[:-len(PARKED)])
+                item = PlanItem("leftover", p, f"{p}|leftover", target=orig, status="review",
+                                note=tr("Zwischenname einer abgebrochenen Umbenennung – bekommt seinen Namen zurück"),
+                                ops=[Op("move", p, orig)])
+                if orig.exists():
+                    item.status = "conflict"
+                    item.add_note(tr("{name} ist belegt", name=orig.name))
+                items.append(item)
+    return items
 
 
 def empty_item(d: Path, group: str) -> PlanItem:

@@ -53,7 +53,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Rückgängig-Funktion** – jeder Lauf wird sofort mitgeschrieben (`%APPDATA%\ShelfSort\history`, die letzten 50); **Verlauf** zeigt die Läufe und macht einen rückgängig. Seitdem Verändertes wird übersprungen, gelöschte leere Ordner neu angelegt, Papierkorb nur als Hinweis.
 - [x] **Log-Datei** `%APPDATA%\ShelfSort\logs\shelfsort.log` (1 MB, 3 alte Stände) mit allem aus dem Log-Fenster, Fehlerdetails und Abstürzen; Knopf „Log-Datei öffnen“ im Verlauf.
 - [x] **Randfälle**: vor dem Lauf Schreibrechte und freien Platz prüfen (sonst nichts anfassen); Netzabbruch bricht den Lauf ab statt jede weitere Datei scheitern zu lassen; gesperrtes Original → Kopie bleibt, Hinweis; Pfade über 260 Zeichen ohne Windows-Langpfade → Konflikt.
-- [ ] Übriggebliebene `*.partial`/`*.shelfsort-tmp` (z. B. nach Netzabbruch) unter „Bibliothek prüfen“ anzeigen.
+- [x] Übriggebliebene `*.partial`/`*.shelfsort-tmp` unter „Bibliothek prüfen → Leere Ordner und Reste“: `.partial` löschen (nur älter als 15 Minuten), `.shelfsort-tmp` zurückbenennen; nie vorausgewählt.
 - [x] **Abbrechen beim Scannen**: Knopf in der Statusleiste für Import-Scan, Bibliothek prüfen und Specials-Check; bis dahin Gefundenes bleibt in der Liste, Plex-Abfragen werden nicht mehr zu Ende geholt.
 - [ ] **Große Bibliotheken**: Prüfung mit tausenden Folgen testen (Dauer, Speicher).
 - [ ] **Mehr Tests** mit echten Release-Namen-Mustern (anonymisiert).

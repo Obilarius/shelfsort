@@ -303,7 +303,7 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
                 touched.add(dst.parent)
                 rep.log(f"{src.name} → {dst}")
             all_done = base
-            if not any(o.kind == "delete_dir" for o in it.ops):
+            if not any(o.kind in ("delete_dir", "delete_file") for o in it.ops):
                 it.status, it.selected = "done", False
                 rep.item_state(it, "done")
         except Cancelled:
@@ -341,12 +341,17 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
     for it in ([] if cancelled else todo):
         if it.status == "error":
             continue
-        dels = [o for o in it.ops if o.kind == "delete_dir"]
+        dels = [o for o in it.ops if o.kind in ("delete_dir", "delete_file")]
         if not dels:
             continue
         try:
             for op in dels:
                 path = fix(op.src)
+                if op.kind == "delete_file":  # leftover .partial of an interrupted copy
+                    path.unlink(missing_ok=True)
+                    rep.journal.deleted_file(path)
+                    rep.log(tr("Gelöscht: {path}", path=path))
+                    continue
                 if has_video(path):
                     raise RuntimeError(tr("Ordner enthält inzwischen ein Video – nicht gelöscht"))
                 shutil.rmtree(path)

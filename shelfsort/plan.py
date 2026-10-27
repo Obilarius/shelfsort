@@ -18,7 +18,7 @@ class ScanCancelled(Exception):
 
 @dataclass
 class Op:
-    kind: str  # "move" | "rename_dir" | "delete_dir" | "write" (new small file, e.g. .nfo)
+    kind: str  # "move" | "rename_dir" | "delete_dir" | "delete_file" | "write" (new small file, e.g. .nfo)
     src: Path
     dst: Path | None = None
     text: str = ""  # content for "write"
@@ -115,5 +115,5 @@ def finalize(items: list[PlanItem]) -> list[PlanItem]:
             it.add_note(tr("Pfad zu lang ({n} Zeichen, Windows erlaubt {max}) – Titel kürzen oder lange Pfade "
                            "in Windows einschalten", n=n, max=MAX_PATH))
     for it in items:
-        it.selected = it.status == "ok" and bool(it.ops) and it.kind != "empty"
+        it.selected = it.status == "ok" and bool(it.ops) and it.kind not in ("empty", "leftover")
     return items

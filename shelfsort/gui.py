@@ -48,7 +48,8 @@ STATUS = {
     "running": (N_("Läuft"),QColor(56, 132, 255, 110)),
     "cancelled": (N_("Abgebrochen"), QColor(110, 118, 129, 60)),
 }
-KIND = {"movie": N_("Film"), "episode": N_("Folge"), "show_dir": N_("Serienordner"), "empty": N_("Leerer Ordner")}
+KIND = {"movie": N_("Film"), "episode": N_("Folge"), "show_dir": N_("Serienordner"), "empty": N_("Leerer Ordner"),
+        "leftover": N_("Rest")}
 
 
 # --- background work ----------------------------------------------------------------------
@@ -132,7 +133,8 @@ class PlanTable(QTableWidget):
         else:
             check.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
         text, color = STATUS.get(it.status, (it.status, QColor(0, 0, 0, 0)))
-        target = tr("(löschen)") if it.kind == "empty" else self._rel(it.target)
+        deletes = any(o.kind in ("delete_dir", "delete_file") for o in it.ops)
+        target = tr("(löschen)") if deletes else self._rel(it.target)
         cells = [check, QTableWidgetItem(tr(text)), QTableWidgetItem(tr(KIND.get(it.kind, it.kind))),
                  QTableWidgetItem(self._rel(it.source)), QTableWidgetItem(target), QTableWidgetItem(it.note)]
         for c, cell in enumerate(cells):
@@ -153,7 +155,7 @@ class PlanTable(QTableWidget):
             cell = self.item(r, 0)
             if cell and cell.flags() & Qt.ItemIsUserCheckable:
                 # never auto-select deletions or conflicts
-                allowed = it.kind != "empty" and it.status not in ("conflict", "error")
+                allowed = it.kind not in ("empty", "leftover") and it.status not in ("conflict", "error")
                 cell.setCheckState(Qt.Checked if on and allowed else Qt.Unchecked)
 
     def selected_rows(self) -> list[int]:
@@ -325,7 +327,9 @@ class MainWindow(QMainWindow):
     def _build_audit_tab(self) -> QWidget:
         self.lib_checks_box = QHBoxLayout()
         self.lib_checks: list = []
-        self.opt_empty = QCheckBox(tr("Leere Ordner"))
+        self.opt_empty = QCheckBox(tr("Leere Ordner und Reste"))
+        self.opt_empty.setToolTip(tr("Ordner ohne Video und Überbleibsel abgebrochener Übertragungen "
+                                     "(*.partial, *.shelfsort-tmp)"))
         self.opt_plex = QCheckBox(tr("Plex-Abgleich (Folgennummern)"))
         self.opt_plex.setToolTip(tr("Vergleicht jede Folge mit der Reihenfolge, die in Plex für die Serie eingestellt ist\n"
                                     "(z. B. TheTVDB BBC iPlayer), und schlägt korrigierte Nummern vor. Braucht den Plex-Token."))
@@ -798,11 +802,11 @@ class MainWindow(QMainWindow):
         if not todo:
             QMessageBox.information(self, tr("Ausführen"), tr("Nichts ausgewählt."))
             return
-        deletions = [it for it in todo if it.kind == "empty"]
+        deletions = [it for it in todo if any(o.kind in ("delete_dir", "delete_file") for o in it.ops)]
         moves = len(todo) - len(deletions)
         text = tr("{n} Einträge umbenennen/verschieben.", n=moves)
         if deletions:
-            text += ("\n\n" + tr("{n} Ordner werden ENDGÜLTIG gelöscht (Netzlaufwerk, kein Papierkorb):",
+            text += ("\n\n" + tr("{n} Einträge werden ENDGÜLTIG gelöscht (Netzlaufwerk, kein Papierkorb):",
                                   n=len(deletions)) + "\n" +
                      "\n".join(f"  • {it.source.name}" for it in deletions[:15]) +
                      ("\n  …" if len(deletions) > 15 else ""))
