@@ -1,6 +1,8 @@
 """Plan items shared by import and audit."""
 from __future__ import annotations
 
+import functools
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -59,8 +61,32 @@ class PlanItem:
             self.ops.append(Op("move", c, companion_target(c, video, target)))
 
 
+MAX_PATH = 259  # Windows without long path support
+
+
+@functools.cache
+def long_paths_enabled() -> bool:
+    """Windows handles paths over 260 characters only with this switched on (Linux/macOS always)."""
+    if sys.platform != "win32":
+        return True
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as k:
+            return winreg.QueryValueEx(k, "LongPathsEnabled")[0] == 1
+    except OSError:
+        return False
+
+
+def too_long(it: PlanItem) -> int:
+    """Length of the longest target path if Windows can't handle it, else 0."""
+    if long_paths_enabled():
+        return 0
+    longest = max((len(str(o.dst)) for o in it.ops if o.dst is not None), default=0)
+    return longest if longest > MAX_PATH else 0
+
+
 def finalize(items: list[PlanItem]) -> list[PlanItem]:
-    """Flag duplicate targets and preselect what is safe."""
+    """Flag duplicate targets and over-long paths, preselect what is safe."""
     seen: dict[str, PlanItem] = {}
     for it in items:
         if it.target is None or not it.ops:
@@ -72,6 +98,11 @@ def finalize(items: list[PlanItem]) -> list[PlanItem]:
                 x.add_note(tr("Mehrere Dateien mit gleichem Ziel"))
         else:
             seen[key] = it
+    for it in items:
+        if n := too_long(it):
+            it.status = "conflict"
+            it.add_note(tr("Pfad zu lang ({n} Zeichen, Windows erlaubt {max}) – Titel kürzen oder lange Pfade "
+                           "in Windows einschalten", n=n, max=MAX_PATH))
     for it in items:
         it.selected = it.status == "ok" and bool(it.ops) and it.kind != "empty"
     return items

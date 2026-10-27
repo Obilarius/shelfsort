@@ -22,7 +22,7 @@ from .config import KINDS, Config
 from .details import DetailsPanel
 from .dialogs import SettingsDialog, show_about
 from .match_dialog import MatchDialog
-from .executor import Reporter, TransferInfo, execute, move_file
+from .executor import Blocked, Reporter, TransferInfo, execute, move_file
 from .history_dialog import HistoryDialog
 from . import i18n
 from .i18n import N_, tr
@@ -791,11 +791,19 @@ class MainWindow(QMainWindow):
             rep = Reporter(w.log.emit, w.transfer.emit, w.item_state.emit, cancel, journal)
             try:
                 changed, renamed = execute(table.items, rep, cfg.roots)
+            except Blocked as e:
+                return str(e)
             finally:
                 journal.close()
             self._plex_refresh(w, changed, renamed)
 
-        def done(_):
+        def done(blocked):
+            if blocked:  # nothing was touched
+                self._run_table = None
+                self.panel.finish(True)
+                self.log(blocked)
+                QMessageBox.warning(self, tr("Ausführen"), tr("Nichts wurde verändert:") + "\n\n" + blocked)
+                return
             self._run_table = None
             table.set_items(table.items)
             self.setWindowTitle("ShelfSort")

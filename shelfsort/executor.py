@@ -16,10 +16,19 @@ from .parse import has_video, walk_videos
 from .plan import PlanItem
 
 CHUNK = 16 * 1024 * 1024
+RESERVE = 200 * 1024 * 1024  # left free on the target drive, so it never runs completely full
 
 
 class Cancelled(Exception):
     pass
+
+
+class Blocked(Exception):
+    """Found before anything was touched: the run cannot work (no space, no write access)."""
+
+
+class SourceKept(Exception):
+    """The copy is complete and verified, only the original could not be deleted."""
 
 
 @dataclass
@@ -78,6 +87,10 @@ def crosses_drive(src: Path, dst: Path) -> bool:
         return True  # unsure -> copy, which always works
 
 
+def _gb(n: int) -> str:
+    return f"{n / 1024 ** 3:.1f} GB"
+
+
 def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None = None,
               check: Callable[[], None] | None = None) -> None:
     _check_free(src, dst)
@@ -86,8 +99,15 @@ def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None 
         os.rename(src, dst)
         return
     # Cross-drive: copy to .partial (Plex ignores it), verify, then swap in and delete source.
-    # Cancelling mid-copy removes the .partial and leaves the source untouched.
+    # Cancelling or a failed copy (network gone, disk full) removes the .partial; the source stays.
     size = src.stat().st_size
+    try:
+        free = shutil.disk_usage(dst.parent).free
+    except OSError:
+        free = None
+    if free is not None and free < size:
+        raise OSError(tr("Zu wenig Platz für {name}: {need} nötig, {free} frei", name=dst.name,
+                         need=_gb(size), free=_gb(free)))
     tmp = dst.with_name(dst.name + ".partial")
     done = 0
     try:
@@ -104,9 +124,15 @@ def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None 
             raise IOError(tr("Größe stimmt nach dem Kopieren nicht: {name}", name=dst.name))
         os.replace(tmp, dst)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass  # share gone: the .partial stays behind, Plex ignores it
         raise
-    os.remove(src)
+    try:
+        os.remove(src)
+    except OSError as e:
+        raise SourceKept(e) from e
 
 
 class _Remap:
@@ -136,9 +162,67 @@ def _size(p: Path) -> int:
         return 0
 
 
+def _existing(p: Path) -> Path:
+    while not p.exists() and p.parent != p:
+        p = p.parent
+    return p
+
+
+def _root_of(p: Path, roots: list[Path]) -> Path | None:
+    return next((r for r in roots if r == p or r in p.parents), None)
+
+
+def _volume(folder: Path) -> str:
+    if os.name == "nt":
+        return os.path.splitdrive(str(folder))[0].lower()  # "x:" or a UNC share
+    try:
+        return str(os.stat(folder).st_dev)
+    except OSError:
+        return str(folder)
+
+
+def _writable(folder: Path) -> bool:
+    probe = folder / f".shelfsort-write-test-{os.getpid()}"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def preflight(todo: list[PlanItem], library_roots: list[Path]) -> list[str]:
+    """Problems that would make the run fail halfway: no write access, not enough space."""
+    folders: set[Path] = set()
+    need: dict[str, tuple[Path, int]] = {}  # volume -> (a folder on it, bytes to copy there)
+    for it in todo:
+        for o in it.ops:
+            if o.kind not in ("move", "rename_dir") or o.dst is None:
+                continue
+            folder = _existing(_root_of(o.dst, library_roots) or o.dst.parent)
+            folders.add(folder)
+            if o.kind == "move" and crosses_drive(o.src, o.dst):
+                vol = _volume(folder)
+                f, n = need.get(vol, (folder, 0))
+                need[vol] = (f, n + _size(o.src))
+    problems = [tr("Keine Schreibrechte in {folder}", folder=f) for f in sorted(folders) if not _writable(f)]
+    for folder, n in need.values():
+        try:
+            free = shutil.disk_usage(folder).free
+        except OSError:
+            continue
+        if free < n + RESERVE:
+            problems.append(tr("Zu wenig Platz auf {folder}: {need} nötig, {free} frei", folder=folder,
+                               need=_gb(n), free=_gb(free)))
+    return problems
+
+
 def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> tuple[set[Path], bool]:
-    """Run selected items. Returns (changed library paths, any folder renamed)."""
+    """Run selected items. Returns (changed library paths, any folder renamed).
+    Raises Blocked before touching anything if the run cannot work."""
     todo = [it for it in items if it.selected and it.ops]
+    if problems := preflight(todo, library_roots):
+        raise Blocked("\n".join(problems))
     fix = _Remap()
     touched: set[Path] = set()
     # Only cross-drive copies take time; same-drive renames are instant and not counted.
@@ -205,7 +289,13 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
 
                 progress(0, size)
                 # Only the main video may be cancelled mid-copy; subtitles follow it.
-                move_file(src, dst, progress, rep.check if i == 0 else None)
+                try:
+                    move_file(src, dst, progress, rep.check if i == 0 else None)
+                except SourceKept as e:
+                    # the target is complete and verified - keep going, but the original needs a hand
+                    rep.log(tr("ACHTUNG: {name} ist kopiert, aber das Original ließ sich nicht löschen ({error}) "
+                               "– bitte von Hand löschen", name=src.name, error=e))
+                    it.add_note(tr("Original nicht gelöscht"))
                 rep.journal.moved(src, dst, size)
                 parked.pop(id(op), None)
                 if cross:
@@ -224,6 +314,13 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         except Exception as e:
             all_done = base
             fail(it, e)
+            # network share gone or drive unplugged: every further item would fail the same way
+            gone = next((r for p in (op.src, op.dst) if not (r := _root_of(p, library_roots) or Path(p.anchor)).exists()),
+                        None)
+            if gone is not None:
+                rep.log(tr("{path} ist nicht mehr erreichbar.", path=gone))
+                cancelled = True
+                break
 
     # parked files whose move did not happen (error/cancel) get their old name back
     for orig, tmp in parked.values():
