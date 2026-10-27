@@ -155,7 +155,11 @@ def main() -> None:
     # tar keeps the executable bit and symlinks on Linux; Windows and macOS users expect a zip
     fmt = "gztar" if sys.platform.startswith("linux") else "zip"
     archive = shutil.make_archive(str(DIST / f"ShelfSort-{__version__}-{platform_tag()}"), fmt, DIST, "ShelfSort")
-    size = sum(f.stat().st_size for f in APP.rglob("*") if f.is_file()) / 1024 / 1024
+    files = [f for f in APP.rglob("*") if f.is_file() and not f.is_symlink()]
+    size = sum(f.stat().st_size for f in files) / 1024 / 1024
+    print("\nGrößte Dateien:")
+    for f in sorted(files, key=lambda f: f.stat().st_size, reverse=True)[:25]:
+        print(f"  {f.stat().st_size / 1024 / 1024:6.1f} MB  {f.relative_to(APP)}")
     print(f"\nFertig: {APP} ({size:.0f} MB)\n        {archive} ({Path(archive).stat().st_size / 1024 / 1024:.0f} MB)")
 
 
