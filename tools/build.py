@@ -3,7 +3,7 @@ positives, and the LGPL libraries stay replaceable files) and zips it.
 
     python tools/build.py
 
-Result: dist/ShelfSort/ and dist/ShelfSort-<version>-<platform>.zip
+Result: dist/ShelfSort/ and dist/ShelfSort-<version>-<platform>.zip (Linux: .tar.gz)
 Works on Windows, Linux and macOS - each platform builds its own version.
 """
 from __future__ import annotations
@@ -152,7 +152,9 @@ def main() -> None:
     prune_qt()
     copy_licenses()
     selftest()
-    archive = shutil.make_archive(str(DIST / f"ShelfSort-{__version__}-{platform_tag()}"), "zip", DIST, "ShelfSort")
+    # tar keeps the executable bit and symlinks on Linux; Windows and macOS users expect a zip
+    fmt = "gztar" if sys.platform.startswith("linux") else "zip"
+    archive = shutil.make_archive(str(DIST / f"ShelfSort-{__version__}-{platform_tag()}"), fmt, DIST, "ShelfSort")
     size = sum(f.stat().st_size for f in APP.rglob("*") if f.is_file()) / 1024 / 1024
     print(f"\nFertig: {APP} ({size:.0f} MB)\n        {archive} ({Path(archive).stat().st_size / 1024 / 1024:.0f} MB)")
 

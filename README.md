@@ -126,7 +126,9 @@ Deutsch und Englisch; beim ersten Start passend zu Windows, später im Assistent
 .venv\Scripts\python tools\build.py
 ```
 
-Ergebnis: `dist\ShelfSort\` (Ordner mit `ShelfSort.exe`) und `dist\ShelfSort-<Version>-windows-x64.zip`. Das Skript prüft die gebaute App mit `ShelfSort.exe --selftest` und legt die Lizenztexte aller Bibliotheken nach `licenses\`. Unter Linux/macOS funktioniert es genauso und baut die Version für das jeweilige System. Das Icon entsteht mit `tools\make_icon.py`.
+Ergebnis: `dist\ShelfSort\` (Ordner mit `ShelfSort.exe`) und `dist\ShelfSort-<Version>-windows-x64.zip`. Das Skript prüft die gebaute App mit `ShelfSort.exe --selftest` und legt die Lizenztexte aller Bibliotheken nach `licenses\`. Unter Linux/macOS funktioniert es genauso und baut die Version für das jeweilige System (Linux als `.tar.gz`).
+
+**Release:** Version in `shelfsort/__init__.py` erhöhen, Abschnitt `## <Version>` in `CHANGELOG.md` schreiben, committen, dann Tag pushen (`git tag v0.2.0`, `git push origin v0.2.0`). GitHub Actions testet, baut Windows und Linux (Ubuntu 22.04, läuft damit auch auf neueren Distributionen) und veröffentlicht das Release mit dem Changelog-Abschnitt als Text. Tests laufen außerdem bei jedem Push auf Windows und Linux. Das Icon entsteht mit `tools\make_icon.py`.
 
 ## Tests
 
