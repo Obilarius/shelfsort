@@ -2,6 +2,11 @@
 
 Each release gets a section `## <version>`; the release workflow publishes it as the release notes.
 
+## 0.2.1
+
+- **Leftovers of interrupted transfers** – *Check library* with “Empty folders and leftovers” now also finds incomplete `*.partial` copies (offered for deletion – the original was never deleted) and files left under a temporary `*.shelfsort-tmp` name (they get their name back). Never preselected; a `.partial` younger than 15 minutes is left alone in case a transfer is still running.
+- **Clearer English texts** – consistent terms (“episode ordering”, specials moving “into the regular seasons”), “sign-in” instead of “token”, and a number of awkward phrasings reworded.
+
 ## 0.2.0
 
 - **Naming templates for Plex, Jellyfin and Kodi** – *Settings → Names* chooses how new folders and files are named: Plex (`{tmdb-…}`, the default as before), Jellyfin (`[tmdbid-…]`, year in show folders), Kodi (no ID in the name) – or each part by hand: ID style, year in show folders, `Season`/`Staffel`, episode titles.
