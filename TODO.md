@@ -73,3 +73,10 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [ ] Playlist „Serie – komplett“ in Ausstrahlungsreihenfolge für Serien, bei denen keine Reihenfolge die Specials einsortiert.
 - [ ] Upgrade ersetzen: bessere Qualität eines vorhandenen Films anbieten statt nur „schon vorhanden“.
 - [ ] Ordner überwachen (automatischer Import, wenn ein Download fertig ist).
+
+### Jellyfin und Kodi (erst bei Nachfrage nach 0.1.0)
+
+- [ ] **Stufe 1 – Benennen:** Namensschema mit Vorlagen für Plex (`{tmdb-…}`), Jellyfin (`[tmdbid-…]`) und Kodi (saubere Namen, optional `.nfo`). Deckt sich mit „Namensschema einstellbar“ (Abschnitt 4). Ca. eine Sitzung.
+- [ ] **Stufe 2 – Jellyfin anbinden:** Server-URL + API-Key statt Plex-Login, Bibliotheken und Ordner über die API, vorhandene Pfad-Zuordnung wiederverwenden, gezielter Scan pro Ordner nach dem Verschieben. Test-Server per Docker. Ca. ein bis zwei Sitzungen.
+- [ ] **Stufe 2 – Kodi anbinden:** Scan über JSON-RPC (muss in Kodi aktiviert sein); Kodi läuft meist auf dem Abspielgerät, oft mehrere Geräte – Einrichtung fummeliger.
+- [ ] **Stufe 3 – Abgleich der Episoden-Reihenfolge** für Jellyfin (Reihenfolge pro Serie) bzw. Kodi (TMDB-Episodengruppen im Scraper) – Gegenstück zu Plex-Abgleich und Specials-Check, praktisch ein eigenes Projekt.
