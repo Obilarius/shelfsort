@@ -30,7 +30,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 - [x] **Exe bauen** – `tools/build.py` (PyInstaller, Ordner-Build), Icon, Versionsinfo, Selbsttest, ZIP; ~38 MB gezippt.
 - [x] **GitHub Actions**: Tests bei jedem Push (Windows + Linux), Build und Release bei Tag `v*` (`.github/workflows/`). Erster Lauf auf GitHub steht noch aus.
-- [x] **GitHub Releases** mit Zip (Windows) und tar.gz (Linux), Text aus `CHANGELOG.md`; Tag muss zu `__version__` passen.
+- [x] **GitHub Releases** mit Zip (Windows) und tar.xz (Linux), Text aus `CHANGELOG.md`; Tag muss zu `__version__` passen.
 - [ ] **Update-Hinweis** in der App (neueste Release-Version über die GitHub-API prüfen).
 - [ ] *Optional:* Code-Signatur gegen die SmartScreen-Warnung – kostet Geld; bis dahin in der README erklären („Weitere Informationen → Trotzdem ausführen“).
 - [x] Linux/macOS im Code: Einstellungsordner (`~/.config`), „anderes Laufwerk?“ über das Dateisystem, Pfad-Suche in `/mnt`, `/media`, `/Volumes`.

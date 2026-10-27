@@ -3,7 +3,7 @@ positives, and the LGPL libraries stay replaceable files) and zips it.
 
     python tools/build.py
 
-Result: dist/ShelfSort/ and dist/ShelfSort-<version>-<platform>.zip (Linux: .tar.gz)
+Result: dist/ShelfSort/ and dist/ShelfSort-<version>-<platform>.zip (Linux: .tar.xz)
 Works on Windows, Linux and macOS - each platform builds its own version.
 """
 from __future__ import annotations
@@ -92,8 +92,11 @@ compatible versions. Source code:
   Qt:            https://download.qt.io/official_releases/qt/
 """
 
-# Qt parts a widgets app does not use (software OpenGL, Qt Quick/QML, PDF) - ~30 MB
-PRUNE = ["opengl32sw.dll", "Qt6Pdf.*", "Qt6Qml*", "Qt6Quick*", "plugins/imageformats/qpdf.*", "qml"]
+# Qt parts a widgets app does not use (software OpenGL, Qt Quick/QML, PDF, virtual keyboard) - ~30 MB.
+# Names, matched anywhere below PySide6: Windows has Qt6Pdf.dll and plugins/imageformats/qpdf.dll,
+# Linux Qt/lib/libQt6Pdf.so.6 and Qt/plugins/imageformats/libqpdf.so.
+PRUNE = ["opengl32sw.dll", "*Qt6Pdf*", "*Qt6Qml*", "*Qt6Quick*", "*qpdf*", "*Qt6VirtualKeyboard*",
+         "*qtvirtualkeyboard*", "qml"]
 
 
 def prune_qt() -> None:
@@ -101,8 +104,11 @@ def prune_qt() -> None:
     if not qt:
         return
     for pattern in PRUNE:
-        for p in qt.glob(pattern):
-            shutil.rmtree(p) if p.is_dir() else p.unlink()
+        for p in list(qt.rglob(pattern)):
+            if p.is_symlink() or p.is_file():
+                p.unlink()
+            elif p.is_dir():
+                shutil.rmtree(p)
 
 
 def copy_licenses() -> None:
@@ -152,13 +158,14 @@ def main() -> None:
     prune_qt()
     copy_licenses()
     selftest()
-    # tar keeps the executable bit and symlinks on Linux; Windows and macOS users expect a zip
-    fmt = "gztar" if sys.platform.startswith("linux") else "zip"
+    # tar keeps the executable bit and symlinks on Linux (xz: a third smaller than gzip);
+    # Windows and macOS users expect a zip
+    fmt = "xztar" if sys.platform.startswith("linux") else "zip"
     archive = shutil.make_archive(str(DIST / f"ShelfSort-{__version__}-{platform_tag()}"), fmt, DIST, "ShelfSort")
     files = [f for f in APP.rglob("*") if f.is_file() and not f.is_symlink()]
     size = sum(f.stat().st_size for f in files) / 1024 / 1024
     print("\nGrößte Dateien:")
-    for f in sorted(files, key=lambda f: f.stat().st_size, reverse=True)[:25]:
+    for f in sorted(files, key=lambda f: f.stat().st_size, reverse=True)[:15]:
         print(f"  {f.stat().st_size / 1024 / 1024:6.1f} MB  {f.relative_to(APP)}")
     print(f"\nFertig: {APP} ({size:.0f} MB)\n        {archive} ({Path(archive).stat().st_size / 1024 / 1024:.0f} MB)")
 

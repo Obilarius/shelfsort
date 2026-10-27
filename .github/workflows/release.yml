@@ -39,7 +39,7 @@ jobs:
           name: build-${{ matrix.os }}
           path: |
             dist/ShelfSort-*.zip
-            dist/ShelfSort-*.tar.gz
+            dist/ShelfSort-*.tar.xz
           if-no-files-found: error
 
   release:
