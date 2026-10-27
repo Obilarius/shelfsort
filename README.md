@@ -75,6 +75,9 @@ The program is not code-signed (that costs money every year). Click *More info �
 **Linux: it does not start / “could not load the Qt platform plugin xcb”.**
 Install the XCB cursor library, which newer Qt versions need: `sudo apt install libxcb-cursor0` (Debian/Ubuntu) or `sudo dnf install xcb-util-cursor` (Fedora). Start it from a terminal to see the error message.
 
+**Plex shows a “Security alert” when I sign in.**
+Plex shows it for every app that is not made by Plex itself (Tautulli, Plex Dash, Sonos, …). If you just clicked *Sign in* in ShelfSort, the request came from ShelfSort; the IP address shown is your own internet connection. ShelfSort never sees your password, only the access token Plex hands out after you confirm.
+
 **Does ShelfSort delete anything?**
 Only two things, and only with your OK: release folders that are empty after the import go to the **recycle bin**; empty folders found by *Check library* are never preselected and are deleted permanently (network shares have no recycle bin) after an extra warning.
 

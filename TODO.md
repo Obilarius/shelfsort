@@ -22,7 +22,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Bibliotheken aus Plex auswählen** – Filme/Serien-Bibliothek im Assistenten; Scan und Plex-Abgleich nutzen die gewählte Bibliothek statt gleicher Ordnernamen.
 - [x] **Pfad-Zuordnung** lokal ↔ Server – automatischer Vorschlag, geprüft an Beispieldateien aus Plex (`path_mapping.py`).
 - [x] **Einrichtungs-Assistent** beim ersten Start und über „Einrichten“.
-- [ ] **PIN-Anmeldung einmal komplett von Hand testen** (Browser-Schritt lässt sich nicht automatisch testen).
+- [x] **PIN-Anmeldung von Hand getestet** – klappt; Plex zeigt dabei seinen üblichen „Sicherheits-Alarm“ für Fremd-Apps, in der FAQ erklärt.
 - [x] Sprache im Assistenten: App-Sprache (Englisch folgt), Standard-Titelsprache und Titelsprache pro Bibliothek (vorbelegt aus Plex, z. B. Englisch für OV), Hinweis bei Abweichung von Plex.
 - [x] Standard-Bibliothek bei Neueinrichtung: die größte pro Typ; Anzahl Filme/Serien wird angezeigt.
 

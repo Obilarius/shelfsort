@@ -75,6 +75,9 @@ Das Programm ist nicht signiert (das kostet jedes Jahr Geld). *Weitere Informati
 **Linux: startet nicht / „could not load the Qt platform plugin xcb“.**
 Die XCB-Cursor-Bibliothek installieren, die neuere Qt-Versionen brauchen: `sudo apt install libxcb-cursor0` (Debian/Ubuntu) oder `sudo dnf install xcb-util-cursor` (Fedora). Aus einem Terminal gestartet, zeigt es die Fehlermeldung.
 
+**Plex zeigt bei der Anmeldung einen „Sicherheits-Alarm“.**
+Den zeigt Plex bei jedem Programm, das nicht von Plex selbst stammt (Tautulli, Plex Dash, Sonos, …). Hast du gerade in ShelfSort auf *Anmelden* geklickt, kommt die Anfrage von ShelfSort; die angezeigte IP-Adresse ist dein eigener Internetanschluss. Dein Passwort sieht ShelfSort nie, nur den Zugangsschlüssel, den Plex nach deiner Bestätigung herausgibt.
+
 **Löscht ShelfSort etwas?**
 Nur zweierlei, und nur nach Rückfrage: Release-Ordner, die nach dem Import leer sind, gehen in den **Papierkorb**; leere Ordner aus *Bibliothek prüfen* sind nie vorausgewählt und werden nach einer eigenen Warnung endgültig gelöscht (Netzlaufwerke haben keinen Papierkorb).
 
