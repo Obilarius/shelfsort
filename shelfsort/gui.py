@@ -28,7 +28,7 @@ from . import i18n
 from .i18n import N_, tr
 from .importer import build_import_plan
 from .library import Library
-from .plan import Override, PlanItem
+from .plan import Override, PlanItem, ScanCancelled
 from .plex import Plex
 from .plex_sync import PlexCatalog, PlexEpisodeSource, catalog_for, specials_overview
 from .reveal import main_video, play as play_video, show_in_folder
@@ -60,15 +60,25 @@ class Worker(QObject):
     log = Signal(str)
     finished = Signal(object)
     failed = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, fn: Callable[["Worker"], object]):
         super().__init__()
         self.fn = fn
+        self.cancel = threading.Event()
+
+    def report(self, text: str, done, total) -> None:
+        """Progress callback for scans; stops the scan here once the user clicked Cancel."""
+        if self.cancel.is_set():
+            raise ScanCancelled()
+        self.progress.emit(text, done, total)
 
     @Slot()
     def run(self) -> None:
         try:
             self.finished.emit(self.fn(self))
+        except ScanCancelled:
+            self.cancelled.emit()
         except Exception:
             file_log.exception("Fehler im Hintergrund")
             self.failed.emit(traceback.format_exc(limit=3))
@@ -185,6 +195,7 @@ class MainWindow(QMainWindow):
         self.tmdb: TMDB | None = None
         self._thread: QThread | None = None
         self._worker: Worker | None = None
+        self._last_cancelled = False  # the last task was stopped by the user (partial result)
         self.import_root: Path | None = None
 
         # the setup wizard opens on first start and from the settings ("Einrichtungsassistent starten")
@@ -231,6 +242,10 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel()
         self.statusBar().addWidget(self.status_label, 1)
         self.statusBar().addPermanentWidget(self.progress)
+        self.scan_cancel = QPushButton(tr("Abbrechen"))
+        self.scan_cancel.clicked.connect(self._cancel_scan)
+        self.scan_cancel.hide()
+        self.statusBar().addPermanentWidget(self.scan_cancel)
         self.update_label = QLabel()
         self.update_label.setTextFormat(Qt.RichText)
         self.update_label.linkActivated.connect(self._update_link)
@@ -435,19 +450,22 @@ class MainWindow(QMainWindow):
         self.tmdb = TMDB(self.cfg.tmdb_key, self.cfg.language)
         return self.tmdb, lib
 
-    def _busy(self, on: bool, statusbar: bool = True) -> None:
+    def _busy(self, on: bool, statusbar: bool = True, cancellable: bool = False) -> None:
         for b in (self.scan_btn, self.import_run, self.audit_btn, self.audit_run):
             b.setEnabled(not on)
         self.specials.set_busy(on)
         self.progress.setVisible(on and statusbar)
+        self.scan_cancel.setVisible(on and cancellable)
+        self.scan_cancel.setEnabled(True)
         if on:
             self.progress.setRange(0, 0)
 
     def run_task(self, fn: Callable[[Worker], object], done: Callable[[object], None],
-                 statusbar: bool = True) -> None:
+                 statusbar: bool = True, cancellable: bool = False) -> None:
+        """cancellable: a scan that stops at its next progress report (fn must use w.report)."""
         if self._thread is not None:
             return
-        self._busy(True, statusbar)
+        self._busy(True, statusbar, cancellable)
         thread, worker = QThread(self), Worker(fn)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -458,11 +476,13 @@ class MainWindow(QMainWindow):
         worker.log.connect(self.log)
         worker.finished.connect(self._task_ok)
         worker.failed.connect(self._task_failed)
+        worker.cancelled.connect(self._task_cancelled)
         self._done = done
         self._thread, self._worker = thread, worker
         thread.start()
 
     def _finish_task(self) -> None:
+        self._last_cancelled = self._worker.cancel.is_set()
         self._thread.quit()
         self._thread.wait()
         self._thread = self._worker = None
@@ -473,6 +493,17 @@ class MainWindow(QMainWindow):
     def _task_ok(self, result) -> None:
         self._finish_task()
         self._done(result)
+
+    @Slot()
+    def _task_cancelled(self) -> None:
+        self._finish_task()
+        self.log(tr("Abgebrochen."))
+
+    def _cancel_scan(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel.set()
+            self.scan_cancel.setEnabled(False)
+            self.status_label.setText(tr("Wird abgebrochen …"))
 
     @Slot(str)
     def _task_failed(self, msg: str) -> None:
@@ -585,7 +616,7 @@ class MainWindow(QMainWindow):
                 self.log(tr("Plex nicht erreichbar, Folgentitel kommen von TMDB: {error}", error=plex_eps.error))
             self._show(self.import_table, items)
 
-        self.run_task(lambda w: build_import_plan(root, tmdb, lib, min_bytes, w.progress.emit, plex_eps), done)
+        self.run_task(lambda w: build_import_plan(root, tmdb, lib, min_bytes, w.report, plex_eps), done, cancellable=True)
 
     def _catalog(self) -> PlexCatalog | None:
         if not self.cfg.plex_token:
@@ -608,7 +639,7 @@ class MainWindow(QMainWindow):
                         n=len(reports), better=better))
             self.specials.set_reports(reports)
 
-        self.run_task(lambda w: specials_overview(catalog, w.progress.emit), done)
+        self.run_task(lambda w: specials_overview(catalog, w.report), done, cancellable=True)
 
     def apply_specials(self, chosen: list) -> None:
         if not chosen:
@@ -677,8 +708,8 @@ class MainWindow(QMainWindow):
                 return
             catalog = catalog_for(self.cfg)
         self.log(tr("Prüfe Bibliothek …"))
-        self.run_task(lambda w: build_audit_plan(tmdb, lib, opts, w.progress.emit, catalog),
-                      lambda items: self._show(self.audit_table, items))
+        self.run_task(lambda w: build_audit_plan(tmdb, lib, opts, w.report, catalog),
+                      lambda items: self._show(self.audit_table, items), cancellable=True)
 
     def _show(self, table: PlanTable, items: list[PlanItem]) -> None:
         table.set_items(items)
@@ -690,6 +721,8 @@ class MainWindow(QMainWindow):
             counts[it.status] = counts.get(it.status, 0) + 1
         summary = ", ".join(f"{n}× {tr(STATUS.get(s, (s,))[0])}" for s, n in counts.items()) or tr("nichts zu tun")
         self.log(tr("{n} Einträge: {summary}", n=len(items), summary=summary))
+        if self._last_cancelled:
+            self.log(tr("Abgebrochen – die Liste zeigt nur, was bis dahin geprüft wurde."))
 
     def _show_file(self, table: PlanTable, row: int) -> None:
         if 0 <= row < len(table.items):

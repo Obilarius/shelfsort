@@ -9,7 +9,7 @@ from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
 from .naming import episode_name, movie_folder, movie_name, show_folder
 from .parse import is_video, parse_release, walk_videos
 from .i18n import tr
-from .plan import Override, PlanItem, finalize
+from .plan import Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import is_placeholder
 
 ProgressFn = Callable[[str, int, int], None]
@@ -26,10 +26,13 @@ def build_import_plan(root: Path, tmdb, lib: Library, min_bytes: int,
                       progress: ProgressFn | None = None, plex_eps: EpisodeSource | None = None) -> list[PlanItem]:
     videos = walk_videos(root, min_bytes)
     items: list[PlanItem] = []
-    for i, v in enumerate(videos):
-        if progress:
-            progress(tr("Erkenne {name}", name=v.name), i, len(videos))
-        items.append(plan_import(v, root, tmdb, lib, plex_eps=plex_eps))
+    try:
+        for i, v in enumerate(videos):
+            if progress:
+                progress(tr("Erkenne {name}", name=v.name), i, len(videos))
+            items.append(plan_import(v, root, tmdb, lib, plex_eps=plex_eps))
+    except ScanCancelled:
+        pass  # keep what was recognised so far
     return finalize(items)
 
 

@@ -215,9 +215,15 @@ class PlexCatalog:
 
         out: dict[str, PlexShow] = {}
         with ThreadPoolExecutor(8) as pool:
-            for i, (s, meta) in enumerate(pool.map(load, items)):
+            results = pool.map(load, items)
+            for i, s in enumerate(items):
                 if progress:
-                    progress(f"Plex: {s.get('title')}", i, len(items))
+                    try:
+                        progress(f"Plex: {s.get('title')}", i, len(items))
+                    except BaseException:
+                        pool.shutdown(wait=False, cancel_futures=True)  # don't fetch the rest first
+                        raise
+                s, meta = next(results)
                 pref = next((p for p in meta.get("Preferences", {}).get("Setting", [])
                              if p.get("id") == "showOrdering"), {})
                 own = meta.get("showOrdering") or pref.get("value") or None
@@ -312,7 +318,11 @@ def specials_overview(catalog: PlexCatalog, progress=None) -> tuple[list[Special
         for i, f in enumerate(as_completed(futures)):
             show = futures[f]
             if progress:
-                progress(f"Specials: {show.title}", i, len(futures))
+                try:
+                    progress(f"Specials: {show.title}", i, len(futures))
+                except BaseException:
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    raise
             try:
                 if r := f.result():
                     reports.append(r)

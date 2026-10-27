@@ -16,7 +16,7 @@ from .naming import (SEASON_DIR_RE, VALID_MOVIE_DIR, VALID_SHOW_DIR, YEAR_SUFFIX
                      movie_folder, movie_name, show_folder, strip_ids, title_of, tmdb_id_of)
 from .parse import (RELEASE_JUNK, current_episode_title, episode_numbers, has_video, parse_release,
                     walk_videos)
-from .plan import Op, Override, PlanItem, finalize
+from .plan import Op, Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import PlexCatalog, PlexEpisode, ProviderError, find_by_title, is_placeholder, season_offsets
 
 _LOOSE_CODE = re.compile(r"S\d{1,3}E[\d,.]+(?:-?E\d+)*\s*-\s*", re.IGNORECASE)
@@ -55,7 +55,10 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
     items: list[PlanItem] = []
     for i, (d, fn) in enumerate(jobs):
         if progress:
-            progress(tr("Prüfe {parent}\\{name}", parent=d.parent.name, name=d.name), i, len(jobs))
+            try:
+                progress(tr("Prüfe {parent}\\{name}", parent=d.parent.name, name=d.name), i, len(jobs))
+            except ScanCancelled:
+                break  # keep the folders checked so far
         language = lib.language_of(d)  # each library may use its own title language (e.g. OV)
         t = localized(tmdb, language)
         try:

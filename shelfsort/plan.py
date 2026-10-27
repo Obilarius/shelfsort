@@ -12,6 +12,10 @@ from .matcher import Match
 from .parse import Parsed, companion_target, companions
 
 
+class ScanCancelled(Exception):
+    """The user stopped an import scan or library check; raised from the progress callback."""
+
+
 @dataclass
 class Op:
     kind: str  # "move" | "rename_dir" | "delete_dir"
