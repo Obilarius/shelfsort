@@ -41,7 +41,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 ## 4. Flexibilität
 
 - [x] **Englische Oberfläche** – `tr()` mit Übersetzungen in `shelfsort/i18n/en.json` (300 Texte), Qt-eigene Texte übersetzt, Sprache nach Windows, Wechsel ohne Neustart; Test prüft Vollständigkeit.
-- [ ] Englische Texte einmal in Ruhe durchklicken und Formulierungen glätten (vor allem Hinweise in der Tabelle).
+- [x] Englische Texte geglättet: einheitlich „items“, „episode ordering“, Specials „in the regular seasons“; „token“ in Nutzertexten durch „sign-in“ ersetzt; holprige Hinweise umformuliert.
 - [x] **Namensschema einstellbar** (Einstellungen → Namen): Vorlagen Plex/Jellyfin/Kodi oder einzeln – ID-Format (`{tmdb-}`, `[tmdbid-]`, keine), Jahr im Serienordner, `Season`/`Staffel`, Folgentitel ja/nein. Vorhandene Ordner werden in jedem Format erkannt, auch ohne ID.
 - [ ] *Optional:* `{tvdb-}`/`{imdb-}` als ID-Format (braucht eine zusätzliche TMDB-Abfrage pro Titel).
 - [x] **Mehrere Bibliotheken pro Typ** – im Assistenten anhaken, je ein Standard für Filme und Serien, Ziel per Rechtsklick; Prüfung, Plex-Abgleich, Specials und Scan über alle.
