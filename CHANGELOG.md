@@ -2,6 +2,12 @@
 
 Each release gets a section `## <version>`; the release workflow publishes it as the release notes.
 
+## 0.3.0
+
+- **Upgrades** – if an imported movie is already in your library, ShelfSort compares the two copies (resolution, then source – e.g. 2160p over 1080p, Blu-ray over WEB, remux over rip) and offers to replace the old file with a better one. A worse or equal copy is marked as a conflict. Never preselected; the confirmation lists every movie that will be replaced, and the old file is deleted only after the new one is completely copied and verified. If the existing file's name says nothing about its quality, the note shows both file sizes so you can decide.
+- **High-DPI screens** – at 150–200 % display scaling, the main window and dialogs could be larger than the screen. They now open at most 90 % of the screen size.
+- **Keyboard** – in the lists, Space ticks or unticks the selected rows, Enter opens the match dialog.
+
 ## 0.2.1
 
 - **Leftovers of interrupted transfers** – *Check library* with “Empty folders and leftovers” now also finds incomplete `*.partial` copies (offered for deletion – the original was never deleted) and files left under a temporary `*.shelfsort-tmp` name (they get their name back). Never preselected; a `.partial` younger than 15 minutes is left alone in case a transfer is still running.
