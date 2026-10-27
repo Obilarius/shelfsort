@@ -2,6 +2,11 @@
 
 Each release gets a section `## <version>`; the release workflow publishes it as the release notes.
 
+## 0.3.1
+
+- **Calmer look** – status columns are rounded badges instead of coloured cells, the main action of each screen is an accent-coloured button, and a selected row is one tinted row (Windows 11 drew a small bar in front of every cell). Long paths are shortened in the middle so the file name stays visible, empty lists say what to do, the log area starts small and the transfer panel takes less room.
+- **More useful log file** – it now records the setup (versions, languages, naming template, libraries, whether a TMDB key and Plex sign-in exist – never the key or token themselves), every scan result with duration, and every run with its outcome. Problems that used to be handled silently, such as a Plex episode list that could not be loaded or an unreadable settings file, are now noted as warnings. Attach it to bug reports: *History → Open log file*.
+
 ## 0.3.0
 
 - **Upgrades** – if an imported movie is already in your library, ShelfSort compares the two copies (resolution, then source – e.g. 2160p over 1080p, Blu-ray over WEB, remux over rip) and offers to replace the old file with a better one. A worse or equal copy is marked as a conflict. Never preselected; the confirmation lists every movie that will be replaced, and the old file is deleted only after the new one is completely copied and verified. If the existing file's name says nothing about its quality, the note shows both file sizes so you can decide.
