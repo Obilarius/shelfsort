@@ -35,7 +35,7 @@ from .reveal import main_video, play as play_video, show_in_folder
 from .specials_tab import SpecialsTab
 from .tmdb import TMDB
 from .transfer_panel import TransferPanel
-from . import update
+from . import naming, update
 from .setup_widgets import run_async
 from .wizard import SetupWizard
 
@@ -190,6 +190,7 @@ class MainWindow(QMainWindow):
     def __init__(self, first_start_wizard: bool = True):
         super().__init__()
         self.cfg = Config.load()
+        naming.set_scheme(naming.scheme_from_config(self.cfg))
         self.setWindowTitle("ShelfSort")
         self.resize(1400, 820)
         self.tmdb: TMDB | None = None

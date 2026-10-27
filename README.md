@@ -32,7 +32,7 @@ ShelfSort asks your Plex server which ordering each show uses and names the file
 
 ![Check library: release-named folders, wrong season folders and empty folders in an existing library](docs/screenshots/check.png)
 
-Naming scheme (the one Plex recommends):
+Naming scheme – by default the one Plex recommends; under *Settings → Names* there are templates for Jellyfin (`[tmdbid-…]`) and Kodi (no ID in the name, a `.nfo` file with the TMDB link instead), or each part by hand (year in show folders, `Season`/`Staffel`, episode titles, `.nfo`):
 
 | | Example |
 |---|---|

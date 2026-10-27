@@ -34,6 +34,9 @@ class Library:
         self.movie_by_title: dict[str, list[Path]] = {}
         self.show_by_id: dict[int, Path] = {}
         self.show_by_title: dict[str, list[Path]] = {}
+        # exact folder name (lower case) -> folder: finds folders without an ID (Kodi style)
+        self.movie_by_name: dict[str, Path] = {}
+        self.show_by_name: dict[str, Path] = {}
         self.refresh()
 
     @classmethod
@@ -47,18 +50,20 @@ class Library:
                    {str(lib.path).lower(): lib.language or cfg.language for lib in cfg.libs})
 
     def refresh(self) -> None:
-        self.movie_by_id.clear(); self.movie_by_title.clear()
-        self.show_by_id.clear(); self.show_by_title.clear()
+        self.movie_by_id.clear(); self.movie_by_title.clear(); self.movie_by_name.clear()
+        self.show_by_id.clear(); self.show_by_title.clear(); self.show_by_name.clear()
         for root in self.movie_roots:
             for d in list_dirs(root):
                 if (i := tmdb_id_of(d.name)) is not None:
                     self.movie_by_id.setdefault(i, d)
                 self.movie_by_title.setdefault(norm(title_of(d.name)), []).append(d)
+                self.movie_by_name.setdefault(strip_ids(d.name).lower(), d)
         for root in self.show_roots:
             for d in list_dirs(root):
                 if (i := tmdb_id_of(d.name)) is not None:
                     self.show_by_id.setdefault(i, d)
                 self.show_by_title.setdefault(norm(title_of(d.name)), []).append(d)
+                self.show_by_name.setdefault(strip_ids(d.name).lower(), d)
 
     @property
     def all_roots(self) -> list[Path]:

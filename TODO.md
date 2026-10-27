@@ -42,7 +42,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 - [x] **Englische Oberfläche** – `tr()` mit Übersetzungen in `shelfsort/i18n/en.json` (300 Texte), Qt-eigene Texte übersetzt, Sprache nach Windows, Wechsel ohne Neustart; Test prüft Vollständigkeit.
 - [ ] Englische Texte einmal in Ruhe durchklicken und Formulierungen glätten (vor allem Hinweise in der Tabelle).
-- [ ] **Namensschema einstellbar**: Serienordner mit/ohne Jahr, `Season`/`Staffel`, ID-Format (`{tmdb-}`, `{tvdb-}`, `{imdb-}`), Episodentitel ja/nein.
+- [x] **Namensschema einstellbar** (Einstellungen → Namen): Vorlagen Plex/Jellyfin/Kodi oder einzeln – ID-Format (`{tmdb-}`, `[tmdbid-]`, keine), Jahr im Serienordner, `Season`/`Staffel`, Folgentitel ja/nein. Vorhandene Ordner werden in jedem Format erkannt, auch ohne ID.
+- [ ] *Optional:* `{tvdb-}`/`{imdb-}` als ID-Format (braucht eine zusätzliche TMDB-Abfrage pro Titel).
 - [x] **Mehrere Bibliotheken pro Typ** – im Assistenten anhaken, je ein Standard für Filme und Serien, Ziel per Rechtsklick; Prüfung, Plex-Abgleich, Specials und Scan über alle.
 - [ ] **Weitere Fälle**: Anime mit absoluter Nummerierung, Filme mit Edition (`{edition-…}`), 3D, Extras-Ordner, mehrteilige Filme testen.
 
@@ -78,7 +79,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ### Jellyfin und Kodi (erst bei Nachfrage nach 0.1.0)
 
-- [ ] **Stufe 1 – Benennen:** Namensschema mit Vorlagen für Plex (`{tmdb-…}`), Jellyfin (`[tmdbid-…]`) und Kodi (saubere Namen, optional `.nfo`). Deckt sich mit „Namensschema einstellbar“ (Abschnitt 4). Ca. eine Sitzung.
+- [x] **Stufe 1 – Benennen:** Vorlagen für Plex, Jellyfin und Kodi (siehe „Namensschema einstellbar“), bei Kodi mit `.nfo`-Datei (TMDB-Link) für Filme und `tvshow.nfo` für Serien.
 - [ ] **Stufe 2 – Jellyfin anbinden:** Server-URL + API-Key statt Plex-Login, Bibliotheken und Ordner über die API, vorhandene Pfad-Zuordnung wiederverwenden, gezielter Scan pro Ordner nach dem Verschieben. Test-Server per Docker. Ca. ein bis zwei Sitzungen.
 - [ ] **Stufe 2 – Kodi anbinden:** Scan über JSON-RPC (muss in Kodi aktiviert sein); Kodi läuft meist auf dem Abspielgerät, oft mehrere Geräte – Einrichtung fummeliger.
 - [ ] **Stufe 3 – Abgleich der Episoden-Reihenfolge** für Jellyfin (Reihenfolge pro Serie) bzw. Kodi (TMDB-Episodengruppen im Scraper) – Gegenstück zu Plex-Abgleich und Specials-Check, praktisch ein eigenes Projekt.

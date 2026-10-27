@@ -18,9 +18,10 @@ class ScanCancelled(Exception):
 
 @dataclass
 class Op:
-    kind: str  # "move" | "rename_dir" | "delete_dir"
+    kind: str  # "move" | "rename_dir" | "delete_dir" | "write" (new small file, e.g. .nfo)
     src: Path
     dst: Path | None = None
+    text: str = ""  # content for "write"
 
 
 @dataclass
@@ -55,6 +56,12 @@ class PlanItem:
 
     def add_note(self, text: str) -> None:
         self.note = f"{self.note} · {text}" if self.note else text
+
+    def add_nfo(self, path: Path, kind: str, tmdb_id: int) -> None:
+        """Kodi .nfo with the TMDB link, if the scheme wants one and there is none yet."""
+        from . import naming
+        if naming.scheme.nfo and not path.exists() and not any(o.kind == "write" and o.dst == path for o in self.ops):
+            self.ops.append(Op("write", path, path, naming.nfo_text(kind, tmdb_id)))
 
     def set_video_move(self, video: Path, target: Path) -> None:
         self.target = target

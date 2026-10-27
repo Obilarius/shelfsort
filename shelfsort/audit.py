@@ -12,8 +12,8 @@ from .i18n import tr
 from .importer import ProgressFn
 from .library import Library, list_dirs, localized
 from .matcher import find_movie, find_show, movie_by_id, show_by_id
-from .naming import (SEASON_DIR_RE, VALID_MOVIE_DIR, VALID_SHOW_DIR, YEAR_SUFFIX_RE, episode_code, episode_name,
-                     movie_folder, movie_name, show_folder, strip_ids, title_of, tmdb_id_of)
+from .naming import (SEASON_DIR_RE, SHOW_NFO, YEAR_SUFFIX_RE, episode_code, episode_name, movie_folder, movie_name, show_folder,
+                     strip_ids, title_of, tmdb_id_of, valid_movie_dir, valid_show_dir)
 from .parse import (RELEASE_JUNK, current_episode_title, episode_numbers, has_video, parse_release,
                     walk_videos)
 from .plan import Op, Override, PlanItem, ScanCancelled, finalize
@@ -138,7 +138,7 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         item.status, item.note = "review", tr("{count} Videodateien im Ordner – manuell prüfen", count=len(main))
         return [item]
 
-    if VALID_MOVIE_DIR.match(d.name) and not override:
+    if valid_movie_dir(d.name) and not override:
         new_dir_name, base = d.name, strip_ids(d.name)
     else:
         fid = tmdb_id_of(d.name)
@@ -177,6 +177,8 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         if len(item.ops) > before:
             item.add_note(tr("Datei umbenennen"))
     item.target = new_dir / final_name
+    if item.match:  # written after the folder rename, so the path is the new one
+        item.add_nfo(new_dir / (base + ".nfo"), "movie", item.match.tmdb_id)
     return [item]
 
 
@@ -202,7 +204,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
 
     show_id = tmdb_id_of(d.name)
     display = strip_ids(d.name)
-    if override or not VALID_SHOW_DIR.match(d.name):
+    if override or not valid_show_dir(d.name):
         dir_item = PlanItem("show_dir", d, group, replan=replan, dialog_kind="show")
         if override or show_id:
             match = show_by_id(tmdb, override.tmdb_id if override else show_id)
@@ -213,7 +215,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         else:
             dir_item.match = match
             show_id = match.tmdb_id
-            new_name = show_folder(match.title, match.tmdb_id)
+            new_name = show_folder(match.title, match.tmdb_id, match.year)
             dir_item.target = d.parent / new_name
             if new_name != d.name:
                 dir_item.ops.append(Op("rename_dir", d, dir_item.target))
@@ -226,7 +228,12 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
                 dir_item.add_note(tr("Treffer unsicher – bitte prüfen"))
             if dir_item.status == "ok":
                 display = strip_ids(new_name)
+            dir_item.add_nfo(dir_item.target / SHOW_NFO, "show", match.tmdb_id)
         items.append(dir_item)
+
+    if show_id is None:  # folder without ID (e.g. Kodi style): find the show for the episode titles
+        found = find_show(tmdb, *_guess_title_year(d.name, "episode"))
+        show_id = found.tmdb_id if found and found.confident else None
 
     season_dirs: dict[int, Path] = {}
     for c in d.iterdir():

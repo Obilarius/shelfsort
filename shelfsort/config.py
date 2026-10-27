@@ -74,6 +74,12 @@ class Config:
     check_updates: bool = True  # ask GitHub once a day for a newer release
     last_update_check: float = 0.0
     skipped_version: str = ""  # "Skip this version"
+    # naming scheme for new names (see naming.Scheme); defaults = Plex
+    naming_ids: str = "plex"
+    naming_show_year: bool = False
+    naming_season: str = "Season"
+    naming_episode_titles: bool = True
+    naming_nfo: bool = False
     # before multiple libraries (read once, then moved into `libraries`)
     movies_root: str = ""
     tv_root: str = ""

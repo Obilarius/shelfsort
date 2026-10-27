@@ -6,7 +6,7 @@ from typing import Callable
 
 from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
-from .naming import episode_name, movie_folder, movie_name, show_folder
+from .naming import SHOW_NFO, episode_name, movie_folder, movie_name, show_folder
 from .parse import is_video, parse_release, walk_videos
 from .i18n import tr
 from .plan import Override, PlanItem, ScanCancelled, finalize
@@ -77,6 +77,18 @@ def _existing(found: Path | None, target: Path | None, lib: Library) -> tuple[Pa
     return found, None
 
 
+def _known_movie(lib: Library, match) -> Path | None:
+    """Folder of this movie: by TMDB ID, else by exact name for folders without ID ('Title (2017)')."""
+    return lib.movie_by_id.get(match.tmdb_id) or lib.movie_by_name.get(movie_name(match.title, match.year).lower())
+
+
+def _known_show(lib: Library, match) -> Path | None:
+    """Folder of this show: by TMDB ID, else 'Title (2019)' or a plain 'Title' without ID."""
+    return lib.show_by_id.get(match.tmdb_id) or next(
+        (d for name in (movie_name(match.title, match.year), movie_name(match.title, None))
+         if (d := lib.show_by_name.get(name.lower()))), None)
+
+
 def _find_any(find, tmdb, p):
     """First confident match over the parsed title and its fallbacks, else the first match at all."""
     first = None
@@ -95,13 +107,14 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
     if not match:
         item.status, item.note = "review", tr("Kein TMDB-Treffer für „{title}“ – Doppelklick zum Suchen", title=p.title)
         return
-    existing, elsewhere = _existing(lib.movie_by_id.get(match.tmdb_id), target, lib)
+    existing, elsewhere = _existing(_known_movie(lib, match), target, lib)
     root = lib.root_of(existing) if existing else (target or lib.movies_root)
     match = _in_language(match, movie_by_id, tmdb, lib.language_of(root))
     item.match = match
     folder = existing or root / movie_folder(match.title, match.year, match.tmdb_id)
     name = movie_name(match.title, match.year) + (f" - pt{p.part}" if p.part else "")
     item.set_video_move(video, folder / (name + video.suffix.lower()))
+    item.add_nfo(folder / (movie_name(match.title, match.year) + ".nfo"), "movie", match.tmdb_id)
 
     if not (match.confident or ov):
         item.status = "review"
@@ -138,13 +151,13 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
         item.status, item.note = "review", tr("Staffel/Folge nicht erkannt – Doppelklick zum Eintragen")
         return
 
-    existing, elsewhere = _existing(lib.show_by_id.get(match.tmdb_id), target, lib)
+    existing, elsewhere = _existing(_known_show(lib, match), target, lib)
     root = lib.root_of(existing) if existing else (target or lib.tv_root)
     language = lib.language_of(root)
     match = _in_language(match, show_by_id, tmdb, language)
     tmdb = localized(tmdb, language)  # episode titles below in the library's language too
     item.match = match
-    show_dir = existing or root / show_folder(match.title, match.tmdb_id)
+    show_dir = existing or root / show_folder(match.title, match.tmdb_id, match.year)
     # Shows Plex already knows: titles come from the Plex list in the show's chosen ordering
     # (e.g. TheTVDB "BBC iPlayer"), so the name matches what Plex shows for this number.
     # New shows too: Plex will number them by the library's default ordering once imported.
@@ -170,6 +183,7 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
         title = f"{t1} & {t2}" if t1 and t2 else t1
     name = episode_name(lib.display_name(show_dir), season, episodes, title)
     item.set_video_move(video, lib.season_dir(show_dir, season) / (name + video.suffix.lower()))
+    item.add_nfo(show_dir / SHOW_NFO, "show", match.tmdb_id)
 
     if not (match.confident or ov):
         item.status = "review"

@@ -32,7 +32,7 @@ ShelfSort fragt den Plex-Server, welche Reihenfolge jede Serie nutzt, und benenn
 
 ![Bibliothek prüfen: Release-Namen, falsche Staffelordner und leere Ordner in einer bestehenden Bibliothek](docs/screenshots/check.png)
 
-Namensschema (das von Plex empfohlene):
+Namensschema – standardmäßig das von Plex empfohlene; unter *Einstellungen → Namen* gibt es Vorlagen für Jellyfin (`[tmdbid-…]`) und Kodi (keine ID im Namen, dafür eine `.nfo`-Datei mit dem TMDB-Link) oder jeden Teil einzeln (Jahr im Serienordner, `Season`/`Staffel`, Folgentitel, `.nfo`):
 
 | | Beispiel |
 |---|---|

@@ -57,6 +57,10 @@ class Journal:
         """File moved; size identifies it again on undo."""
         self._record("move", src=src, dst=dst, size=size)
 
+    def created(self, path: Path, size: int) -> None:
+        """New small file (e.g. .nfo); undo removes it if it is unchanged."""
+        self._record("create", path=path, size=size)
+
     def deleted(self, path: Path) -> None:
         self._record("delete_dir", path=path)
 
@@ -130,6 +134,8 @@ def describe(e: dict) -> str:
         return tr("Gelöscht: {path}", path=e["path"])
     if op == "trash":
         return tr("Papierkorb: {path}", path=e["path"])
+    if op == "create":
+        return tr("Angelegt: {path}", path=e["path"])
     return str(e)
 
 
@@ -195,6 +201,17 @@ def undo(run: Run, log: Callable[[str], None], library_roots: list[Path],
                 changed.add(path.parent)
                 ok += 1
                 log(tr("Ordner wieder angelegt: {path}", path=path))
+            elif op == "create":
+                path = Path(e["path"])
+                if not path.exists():
+                    continue  # already gone - nothing to undo
+                if _size(path) != e.get("size"):
+                    skip(tr("{name} wurde seitdem verändert", name=path))
+                    continue
+                path.unlink()
+                left.add(path.parent)
+                ok += 1
+                log(tr("Entfernt: {path}", path=path))
             elif op == "trash":  # only a hint: the videos themselves are back already
                 log(tr("{path} liegt im Papierkorb – bei Bedarf dort wiederherstellen", path=e["path"]))
         except Exception as ex:

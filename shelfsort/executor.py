@@ -197,7 +197,7 @@ def preflight(todo: list[PlanItem], library_roots: list[Path]) -> list[str]:
     need: dict[str, tuple[Path, int]] = {}  # volume -> (a folder on it, bytes to copy there)
     for it in todo:
         for o in it.ops:
-            if o.kind not in ("move", "rename_dir") or o.dst is None:
+            if o.kind not in ("move", "rename_dir", "write") or o.dst is None:
                 continue
             folder = _existing(_root_of(o.dst, library_roots) or o.dst.parent)
             folders.add(folder)
@@ -357,9 +357,25 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
         except Exception as e:
             fail(it, e)
 
-    # items that only had folder renames
+    # 3b) small new files (.nfo) once their folder is in place; an existing file is never overwritten
+    for it in ([] if cancelled else todo):
+        if it.status in ("error", "cancelled"):
+            continue
+        for op in (o for o in it.ops if o.kind == "write"):
+            path = fix(op.dst)
+            try:
+                if path.exists():
+                    continue
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(op.text, encoding="utf-8")
+                rep.journal.created(path, path.stat().st_size)
+                touched.add(path.parent)
+            except OSError as e:
+                rep.log(tr("Konnte {path} nicht anlegen: {error}", path=path, error=e))
+
+    # items that only had folder renames (and maybe a .nfo)
     for it in todo:
-        if it.status not in ("error", "cancelled", "done") and all(o.kind == "rename_dir" for o in it.ops):
+        if it.status not in ("error", "cancelled", "done") and all(o.kind in ("rename_dir", "write") for o in it.ops):
             it.status, it.selected = "done", False
             rep.item_state(it, "done")
 

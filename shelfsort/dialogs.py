@@ -7,9 +7,10 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMessageBox,
                                QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
-from . import i18n
+from . import i18n, naming
 from .config import Config
 from .i18n import N_, tr
+from .naming_widget import NamingWidget
 from .setup_widgets import (GRAY, LanguageFields, LibrariesWidget, PlexLoginWidget, ServerWidget, TmdbKeyWidget,
                             label)
 
@@ -32,7 +33,7 @@ def _tab(*widgets, stretch: bool = True) -> QWidget:
 class SettingsDialog(QDialog):
     """Everything can be changed here directly; the setup wizard uses the same building blocks."""
 
-    TAB_GENERAL, TAB_PLEX, TAB_LIBRARIES, TAB_TMDB = range(4)
+    TAB_GENERAL, TAB_NAMING, TAB_PLEX, TAB_LIBRARIES, TAB_TMDB = range(5)
 
     def __init__(self, cfg: Config, parent=None):
         super().__init__(parent)
@@ -98,8 +99,10 @@ class SettingsDialog(QDialog):
                                       f'but is not endorsed, certified, or otherwise approved by TMDB.', GRAY))
 
         self.tabs = QTabWidget()
-        for widget, title in ((general, N_("Allgemein")), (plex, "Plex"), (libraries, N_("Bibliotheken")),
-                              (tmdb, "TMDB")):
+        self.naming = NamingWidget(naming.scheme_from_config(cfg))
+        names = _tab(self.naming)
+        for widget, title in ((general, N_("Allgemein")), (names, N_("Namen")), (plex, "Plex"),
+                              (libraries, N_("Bibliotheken")), (tmdb, "TMDB")):
             self.tabs.addTab(widget, tr(title))
         self.tabs.currentChanged.connect(self._tab_changed)
 
@@ -162,6 +165,10 @@ class SettingsDialog(QDialog):
         c.language = self.languages.metadata_language
         c.min_video_mb = self.min_mb.value()
         c.check_updates = self.check_updates.isChecked()
+        s = self.naming.scheme()
+        c.naming_ids, c.naming_show_year, c.naming_season = s.ids, s.show_year, s.season
+        c.naming_episode_titles, c.naming_nfo = s.episode_titles, s.nfo
+        naming.set_scheme(s)
         c.tmdb_key = self.tmdb.key
         if self.manual.isChecked():
             c.plex_url = self.manual_url.text().strip()
