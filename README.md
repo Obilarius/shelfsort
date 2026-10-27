@@ -6,7 +6,7 @@ ShelfSort is a small desktop app for Windows and Linux. Point it at a download f
 
 [Deutsch](README.de.md) · [Download](https://github.com/Obilarius/shelfsort/releases/latest) · [Changelog](CHANGELOG.md)
 
-<!-- screenshots: docs/screenshots/import.png, docs/screenshots/check.png -->
+![Import: every file from the download folder with its planned new name; details of the selected match on the right](docs/screenshots/import.png)
 
 > ShelfSort is an independent project and not affiliated with Plex, Inc. “Plex” is a trademark of Plex, Inc.
 
@@ -29,6 +29,8 @@ ShelfSort asks your Plex server which ordering each show uses and names the file
 - **Undo** – every run is recorded; **History** shows it and puts everything back.
 - **Plex scan** – afterwards only the changed folders are rescanned.
 - **German and English** user interface.
+
+![Check library: release-named folders, wrong season folders and empty folders in an existing library](docs/screenshots/check.png)
 
 Naming scheme (the one Plex recommends):
 
