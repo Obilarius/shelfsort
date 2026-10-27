@@ -70,6 +70,9 @@ def test_naming():
     assert current_episode_title("EUReKA - S01E02 - S.A.R.A.H") == "S.A.R.A.H"
     assert current_episode_title("Show - S01E02.Die.Wechseljahre") == "Die Wechseljahre"
     assert episode_numbers("Doctor Who - S07E05,5 - Die Schneemänner") is None
+    assert episode_numbers("Show.S07E05.5.mkv") is None
+    assert episode_numbers("Show.S01E02.1080p.WEB.h264-GRP") == (1, [2])  # not "E02.1"
+    assert episode_numbers("Show.S01E02.4K.HDR") == (1, [2])
 
 
 def test_folder_title_year_keeps_numbers_in_titles():

@@ -17,8 +17,8 @@ EXTRAS_DIRS = {
 }
 
 _SAMPLE_RE = re.compile(r"(?:^|[\W_])sample(?:[\W_]|$)", re.IGNORECASE)
-# "(?![\d,.]\d)" rejects odd numbers like "S07E05,5" instead of misreading them.
-EP_RE = re.compile(r"(?<![a-z0-9])s(\d{1,3})[ ._-]?e(\d{1,4})((?:[ ._]?-?[ ._]?e\d{1,4})*)(?!\d|[,.]\d)",
+# Odd numbers like "S07E05,5" are rejected instead of misread; "S01E02.1080p" is a normal episode.
+EP_RE = re.compile(r"(?<![a-z0-9])s(\d{1,3})[ ._-]?e(\d{1,4})((?:[ ._]?-?[ ._]?e\d{1,4})*)(?!\d|[,.]\d(?![\da-z]))",
                    re.IGNORECASE)
 RELEASE_JUNK = re.compile(
     r"\b(480p|576p|720p|1080p|2160p|x264|x265|h\.?264|h\.?265|hevc|web(-?dl|rip)?|bluray|bdrip|"
