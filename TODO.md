@@ -55,8 +55,10 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Randfälle**: vor dem Lauf Schreibrechte und freien Platz prüfen (sonst nichts anfassen); Netzabbruch bricht den Lauf ab statt jede weitere Datei scheitern zu lassen; gesperrtes Original → Kopie bleibt, Hinweis; Pfade über 260 Zeichen ohne Windows-Langpfade → Konflikt.
 - [x] Übriggebliebene `*.partial`/`*.shelfsort-tmp` unter „Bibliothek prüfen → Leere Ordner und Reste“: `.partial` löschen (nur älter als 15 Minuten), `.shelfsort-tmp` zurückbenennen; nie vorausgewählt.
 - [x] **Abbrechen beim Scannen**: Knopf in der Statusleiste für Import-Scan, Bibliothek prüfen und Specials-Check; bis dahin Gefundenes bleibt in der Liste, Plex-Abfragen werden nicht mehr zu Ende geholt.
-- [ ] **Große Bibliotheken**: Prüfung mit tausenden Folgen testen (Dauer, Speicher).
+- [x] **Große Bibliotheken** getestet (0.3.0, ~200 Filme, 78 Serien, 3.430 Folgen): Bibliothek prüfen mit Plex-Abgleich 1:26 min, max. 90 MB; Specials-Check 10 s, max. 120 MB; Abbrechen funktioniert. Etwa 1 s pro Ordner, fast nur Netzwerk-Abfragen.
 - [ ] **Mehr Tests** mit echten Release-Namen-Mustern (anonymisiert).
+- [x] **Log-Datei ausführlicher**: beim Start Umgebung und Einstellungen (ohne Key/Token), jeder Scan mit Optionen, Dauer und jeder Zeile (Status, Quelle → Ziel, Hinweis), Specials-Ergebnis, Lauf-Zusammenfassung; still abgefangene Probleme (Plex-Listen, Cover, Hintergrundaufgaben, kaputte Einstellungen) als Warnung.
+- [ ] *Später:* Schalter „Ausführliches Log“ – Treffersuche (gesuchte Titel, TMDB-Kandidaten, warum „unsicher“) und Plex-/TMDB-Abfragen mit Dauer. Erst wenn Fehlerberichte zeigen, was fehlt.
 
 ## 6. Optik & Bedienung
 

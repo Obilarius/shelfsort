@@ -5,6 +5,7 @@ dialog in tabs - so both look and behave the same.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Callable
 
@@ -60,6 +61,7 @@ class _Job(QRunnable):
             result, error = self.fn(), None
         except Exception as e:
             result, error = None, str(e)
+            logging.getLogger("shelfsort").warning("Background job failed: %s", e, exc_info=True)
         try:
             if error is None:
                 self.relay.done.emit(result)

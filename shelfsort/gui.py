@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFile
                                QTabWidget, QVBoxLayout, QWidget)
 
 from . import history
+from . import applog
 from .applog import log as file_log, setup as setup_log
 from .audit import AuditOptions, build_audit_plan
 from .config import KINDS, Config
@@ -208,6 +209,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.cfg = Config.load()
         naming.set_scheme(naming.scheme_from_config(self.cfg))
+        applog.environment(self.cfg)
         self.setWindowTitle("ShelfSort")
         fit_to_screen(self, 1400, 820)
         self.tmdb: TMDB | None = None
@@ -486,6 +488,7 @@ class MainWindow(QMainWindow):
         if self._thread is not None:
             return
         self._busy(True, statusbar, cancellable)
+        self._started = time.monotonic()
         thread, worker = QThread(self), Worker(fn)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -652,6 +655,10 @@ class MainWindow(QMainWindow):
 
         def done(result):
             reports, errors = result
+            file_log.info("Specials check finished in %.1f s", time.monotonic() - self._started)
+            for r in reports:
+                file_log.info("  %s: %d specials with %s; best: %s", r.show.title, len(r.specials), r.show.ordering,
+                              f"{r.best.label} ({len(r.best.in_flow)} into the seasons)" if r.best else "-")
             for e in errors:
                 self.log(tr("Specials-Check: {error}", error=e))
             better = sum(1 for r in reports if r.best)
@@ -721,6 +728,8 @@ class MainWindow(QMainWindow):
         opts = AuditOptions(movies=any(l.kind == "movie" for l in libs), shows=has_shows,
                             empty=self.opt_empty.isChecked(), episode_titles=has_shows and self.opt_titles.isChecked(),
                             plex_sync=has_shows and self.opt_plex.isChecked(), libraries={l.path for l in libs})
+        file_log.info("Library check: %s; empty folders/leftovers %s, Plex sync %s, episode titles %s",
+                      ", ".join(l.title for l in libs), opts.empty, opts.plex_sync, opts.episode_titles)
         catalog = None
         if opts.plex_sync and opts.shows:
             if not self.cfg.plex_token:
@@ -732,6 +741,8 @@ class MainWindow(QMainWindow):
                       lambda items: self._show(self.audit_table, items), cancellable=True)
 
     def _show(self, table: PlanTable, items: list[PlanItem]) -> None:
+        applog.plan("Import scan" if table is self.import_table else "Library check", items,
+                    time.monotonic() - self._started)
         table.set_items(items)
         if items:
             table.selectRow(0)
@@ -843,6 +854,7 @@ class MainWindow(QMainWindow):
             title = tr("Bibliothek prüfen")
         cancel = self._cancel = threading.Event()
         self._run_table = table
+        file_log.info("Run %r: %d items", title, len(todo))
         self.panel.start(len(todo))
 
         def work(w: Worker):
@@ -864,6 +876,13 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, tr("Ausführen"), tr("Nichts wurde verändert:") + "\n\n" + blocked)
                 return
             self._run_table = None
+            counts: dict[str, int] = {}
+            for it in todo:
+                counts[it.status] = counts.get(it.status, 0) + 1
+            info = self.panel.last
+            file_log.info("Run finished in %.1f s%s: %s", time.monotonic() - self._started,
+                          f", {info.all_total / 1024 ** 3:.1f} GB copied across drives" if info and info.all_total else "",
+                          counts)
             table.set_items(table.items)
             self.setWindowTitle("ShelfSort")
             self.log(self.panel.finish(cancel.is_set()))

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import sys
@@ -95,7 +96,10 @@ class Config:
             shutil.copy2(_OLD_CONFIG_PATH, CONFIG_PATH)
         try:
             data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            return cls()
+        except (OSError, ValueError) as e:  # damaged file: start with defaults, but say so
+            logging.getLogger("shelfsort").error("Settings %s unreadable, using defaults: %s", CONFIG_PATH, e)
             return cls()
         known = {f.name for f in fields(cls)}
         cfg = cls(**{k: v for k, v in data.items() if k in known})

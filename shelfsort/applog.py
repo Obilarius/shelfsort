@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import sys
 import threading
 from logging.handlers import RotatingFileHandler
@@ -29,10 +30,38 @@ def setup() -> None:
     log.propagate = False
 
     def hook(kind, value, tb):
-        log.critical("Unerwarteter Fehler", exc_info=(kind, value, tb))
+        log.critical("Unexpected error", exc_info=(kind, value, tb))
         sys.__excepthook__(kind, value, tb)
 
     sys.excepthook = hook
     threading.excepthook = lambda a: hook(a.exc_type, a.exc_value, a.exc_traceback)
     from . import __version__
-    log.info("ShelfSort %s gestartet (%s, Python %s)", __version__, sys.platform, sys.version.split()[0])
+    log.info("ShelfSort %s started (%s, Python %s)", __version__, platform.platform(), sys.version.split()[0])
+
+
+def environment(cfg) -> None:
+    """Setup in the log, for bug reports. Never the TMDB key or the Plex token, only whether they are set."""
+    from PySide6 import __version__ as pyside
+    from PySide6.QtCore import qVersion
+
+    from . import i18n, naming
+    log.info("Qt %s / PySide6 %s, UI language %s, title language %s", qVersion(), pyside, i18n.language(), cfg.language)
+    log.info("Naming: %s (%s)", naming.preset_of(naming.scheme) or "custom", naming.scheme)
+    log.info("TMDB key %s, Plex %s%s", "set" if cfg.tmdb_key else "MISSING",
+             f"signed in, server {cfg.plex_server_name or cfg.plex_url}" if cfg.plex_token else "not signed in",
+             "" if cfg.check_updates else ", update check off")
+    for lib in cfg.libs:
+        log.info("Library %s (%s): %s, language %s%s%s", lib.title, lib.kind, lib.local_root, lib.language or "default",
+                 ", Plex section " + lib.section_key if lib.section_key else ", no Plex section",
+                 ", default" if lib.default else "")
+
+
+def plan(title: str, items, seconds: float) -> None:
+    """Every row of a scan result: status, kind, source -> target, note."""
+    counts: dict[str, int] = {}
+    for it in items:
+        counts[it.status] = counts.get(it.status, 0) + 1
+    log.info("%s finished in %.1f s: %d items %s", title, seconds, len(items), counts)
+    for it in items:
+        log.info("  %-8s %-8s %s -> %s%s%s", it.status, it.kind, it.source, it.target or "-",
+                 " | " + it.note if it.note else "", " [selected]" if it.selected else "")

@@ -1,6 +1,7 @@
 """Applying a plan: renaming, moving across drives, deleting, cleaning up."""
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import threading
@@ -128,8 +129,8 @@ def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None 
     except BaseException:
         try:
             tmp.unlink(missing_ok=True)
-        except OSError:
-            pass  # share gone: the .partial stays behind, Plex ignores it
+        except OSError as e:  # share gone: the .partial stays behind, Plex ignores it, the library check finds it
+            logging.getLogger("shelfsort").warning("Could not remove %s: %s", tmp, e)
         raise
     try:
         os.remove(src)

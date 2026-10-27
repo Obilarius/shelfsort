@@ -1,6 +1,7 @@
 """Loading TMDB images asynchronously (Qt network, no extra threads) with a session-wide cache."""
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from PySide6.QtCore import QObject, QUrl
@@ -33,6 +34,7 @@ class PosterLoader(QObject):
         def finished():
             reply.deleteLater()
             if reply.error() != QNetworkReply.NoError:
+                logging.getLogger("shelfsort").warning("Image %s not loaded: %s", url, reply.errorString())
                 return
             pix = QPixmap()
             if pix.loadFromData(reply.readAll()):

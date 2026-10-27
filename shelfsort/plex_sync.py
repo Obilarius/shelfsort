@@ -6,6 +6,7 @@ list for the show's ordering (e.g. TheTVDB "BBC iPlayer"), so files can be renum
 from __future__ import annotations
 
 import difflib
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ from .matcher import norm
 from .naming import episode_code
 from .plex import LibraryMap, Plex
 
+log = logging.getLogger("shelfsort")
 PROVIDER = "https://metadata.provider.plex.tv/library/metadata"
 _PAREN = re.compile(r"\s*[\(\[][^)\]]*[\)\]]")
 _PLACEHOLDER = re.compile(r"^(episode|folge)\s*\d+$", re.IGNORECASE)
@@ -360,6 +362,7 @@ class PlexEpisodeSource:
                 self._default = self.catalog.library_ordering()  # default TV library
             except Exception as e:  # Plex down -> import falls back to TMDB
                 self._shows, self.error = {}, str(e)
+                log.warning("Plex show list not available, episode titles from TMDB: %s", e)
                 return None
         show = self._shows.get(str(show_dir).lower())
         if not show and tmdb_id is not None:
@@ -368,6 +371,7 @@ class PlexEpisodeSource:
                     guid = self.catalog.match_show(tmdb_id)
                 except Exception as e:
                     guid, self.error = None, str(e)
+                    log.warning("Plex match for tmdb-%s failed: %s", tmdb_id, e)
                 self._new[tmdb_id] = PlexShow("", "", guid, self._default, show_dir) if guid else None
             show = self._new[tmdb_id]
         if not show:
@@ -376,6 +380,7 @@ class PlexEpisodeSource:
             return self.catalog.load_episodes(show, language)
         except Exception as e:
             self.error = str(e)
+            log.warning("Plex episode list for %s failed: %s", show_dir.name, e)
             return None
 
 
