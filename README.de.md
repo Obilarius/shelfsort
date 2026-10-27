@@ -96,6 +96,7 @@ ShelfSort hat keine Telemetrie und kein eigenes Konto. Es spricht mit:
 
 - **TMDB** (`api.themoviedb.org`, `image.tmdb.org`) – Titel suchen, Cover laden, mit deinem eigenen API-Key.
 - **Plex** – `plex.tv` für Anmeldung und Serversuche, deinem eigenen Plex-Server und Plex’ Metadatendienst `metadata.provider.plex.tv` für die Episoden-Reihenfolgen.
+- **GitHub** (`api.github.com`) – einmal am Tag, um nach einer neuen Version zu sehen. Heruntergeladen oder installiert wird nichts automatisch; eine neue Version erscheint unten rechts im Fenster. Abschaltbar unter *Einstellungen → Allgemein*.
 
 TMDB-Key und Plex-Token liegen nur in der Einstellungsdatei auf deinem Computer.
 

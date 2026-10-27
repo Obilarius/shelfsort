@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 import traceback
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QLibraryInfo, QObject, Qt, QThread, QTimer, QTranslator, Signal, Slot
-from PySide6.QtGui import QAction, QBrush, QColor, QIcon
+from PySide6.QtCore import QLibraryInfo, QObject, Qt, QThread, QTimer, QTranslator, QUrl, Signal, Slot
+from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
@@ -34,6 +35,8 @@ from .reveal import main_video, play as play_video, show_in_folder
 from .specials_tab import SpecialsTab
 from .tmdb import TMDB
 from .transfer_panel import TransferPanel
+from . import update
+from .setup_widgets import run_async
 from .wizard import SetupWizard
 
 STATUS = {
@@ -228,10 +231,16 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel()
         self.statusBar().addWidget(self.status_label, 1)
         self.statusBar().addPermanentWidget(self.progress)
+        self.update_label = QLabel()
+        self.update_label.setTextFormat(Qt.RichText)
+        self.update_label.linkActivated.connect(self._update_link)
+        self.update_label.hide()
+        self.statusBar().addPermanentWidget(self.update_label)
         self.setAcceptDrops(True)
 
         if first_start_wizard and not self.cfg.is_set_up:
             QTimer.singleShot(0, self.open_wizard)  # first start
+        QTimer.singleShot(3000, self.check_for_update)
 
     # --- tabs ---
 
@@ -806,6 +815,33 @@ class MainWindow(QMainWindow):
                 w.log.emit(tr("Plex-Scan fehlgeschlagen: {error}", error=e))
         elif changed:
             w.log.emit(tr("Kein Plex-Token – Bibliothek bitte manuell scannen."))
+
+    # --- update hint ---
+
+    def check_for_update(self) -> None:
+        """Once a day in the background; quiet when offline or nothing is new."""
+        if not update.due(self.cfg):
+            return
+
+        def ok(release: update.Release) -> None:
+            self.cfg.last_update_check = time.time()
+            self.cfg.save()
+            if update.newer(release, self.cfg):
+                self._release = release
+                self.update_label.setText(tr('Neue Version {version} verfügbar – <a href="open">Herunterladen</a>'
+                                             ' · <a href="skip">Überspringen</a>', version=release.version))
+                self.update_label.show()
+                file_log.info("Neue Version verfügbar: %s", release.version)
+
+        run_async(self, update.latest, ok, lambda e: file_log.info("Update-Prüfung fehlgeschlagen: %s", e))
+
+    def _update_link(self, link: str) -> None:
+        if link == "open":
+            QDesktopServices.openUrl(QUrl(self._release.url))
+        else:
+            self.cfg.skipped_version = self._release.version
+            self.cfg.save()
+        self.update_label.hide()
 
     # --- history ---
 

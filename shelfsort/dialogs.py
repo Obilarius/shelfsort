@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMessageBox,
+from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMessageBox,
                                QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 from . import i18n
@@ -57,6 +57,11 @@ class SettingsDialog(QDialog):
                                 "lässt sich unter <i>Bibliotheken</i> einzeln umstellen."), GRAY),
                        size_form,
                        label(tr("Videos unter dieser Größe (z. B. Samples) übersieht der Import."), GRAY))
+        self.check_updates = QCheckBox(tr("Beim Start nach neuen Versionen suchen"))
+        self.check_updates.setChecked(cfg.check_updates)
+        general.layout().addWidget(self.check_updates)
+        general.layout().addWidget(label(tr("Einmal am Tag eine kurze Anfrage an GitHub; heruntergeladen wird nichts. "
+                                            "Eine neue Version erscheint unten rechts im Fenster."), GRAY))
         general.layout().addWidget(label(tr("Alles noch einmal Schritt für Schritt einrichten:"), GRAY))
         general.layout().addWidget(wizard_btn, 0, Qt.AlignLeft)
 
@@ -156,6 +161,7 @@ class SettingsDialog(QDialog):
         c.app_language = self.languages.app_language
         c.language = self.languages.metadata_language
         c.min_video_mb = self.min_mb.value()
+        c.check_updates = self.check_updates.isChecked()
         c.tmdb_key = self.tmdb.key
         if self.manual.isChecked():
             c.plex_url = self.manual_url.text().strip()

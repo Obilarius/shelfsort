@@ -71,6 +71,9 @@ class Config:
     client_id: str = ""  # identifies this ShelfSort installation at plex.tv
     plex_server_name: str = ""
     libraries: list[dict] = field(default_factory=list)  # LibraryConfig as dicts
+    check_updates: bool = True  # ask GitHub once a day for a newer release
+    last_update_check: float = 0.0
+    skipped_version: str = ""  # "Skip this version"
     # before multiple libraries (read once, then moved into `libraries`)
     movies_root: str = ""
     tv_root: str = ""
