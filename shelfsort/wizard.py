@@ -4,7 +4,10 @@ The pages wrap the building blocks from setup_widgets, which the settings dialog
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QCheckBox, QPushButton, QVBoxLayout, QWizard, QWizardPage
 
 from .config import KINDS, Config, language_name
@@ -205,6 +208,9 @@ class SetupWizard(QWizard):
         self.language_switch: tuple[str, str] | None = None  # (app language, title language)
         self.setWindowTitle(tr("ShelfSort einrichten"))
         self.setWizardStyle(QWizard.ModernStyle)
+        logo = QPixmap(str(Path(__file__).parent / "assets" / "icon.png"))
+        if not logo.isNull():
+            self.setPixmap(QWizard.LogoPixmap, logo.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         fit_to_screen(self, 860, 580)
         self.setPage(PAGE_WELCOME, WelcomePage(cfg, start_meta))
         self.setPage(PAGE_TMDB, TmdbPage(cfg))

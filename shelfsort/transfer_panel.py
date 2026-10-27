@@ -40,14 +40,14 @@ class TransferPanel(QFrame):
             #transferPanel { border: 1px solid palette(mid); border-radius: 6px; }
             QProgressBar { border: 1px solid palette(mid); border-radius: 5px; background: palette(base);
                            text-align: center; }
-            QProgressBar::chunk { background-color: #2f7cf6; border-radius: 4px; }
-            QProgressBar#overall { min-height: 26px; font-weight: bold; }
-            QProgressBar#file { min-height: 8px; max-height: 8px; }
+            QProgressBar::chunk { background-color: palette(highlight); border-radius: 4px; }
+            QProgressBar#overall { min-height: 22px; max-height: 22px; font-weight: bold; }
+            QProgressBar#file { min-height: 6px; max-height: 6px; }
         """)
 
         self.title = QLabel()
         f = QFont(self.title.font())
-        f.setPointSizeF(f.pointSizeF() * 1.25)
+        f.setPointSizeF(f.pointSizeF() * 1.1)
         f.setBold(True)
         self.title.setFont(f)
 
@@ -61,6 +61,7 @@ class TransferPanel(QFrame):
         self.file_label = QLabel()
         self.file_label.setStyleSheet("color: gray")
         self.stats = QLabel()
+        self.stats.setStyleSheet("color: gray")
 
         self.cancel_btn = QPushButton(tr("Abbrechen"))
         self.cancel_btn.setToolTip(tr("Laufende Kopie wird verworfen, das Original bleibt. Rest wird nicht angefasst."))
@@ -68,18 +69,23 @@ class TransferPanel(QFrame):
         self.close_btn = QPushButton(tr("Schließen"))
         self.close_btn.clicked.connect(self._close)
 
+        # row 1: what is happening, numbers, button - row 2: overall bar - row 3: current file
         head = QHBoxLayout()
-        head.addWidget(self.title, 1)
+        head.addWidget(self.title)
+        head.addSpacing(12)
+        head.addWidget(self.stats, 1)
         head.addWidget(self.cancel_btn)
         head.addWidget(self.close_btn)
+        file_row = QHBoxLayout()
+        file_row.addWidget(self.file_label)
+        file_row.addWidget(self.file_bar, 1)
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(6)
         lay.addLayout(head)
         lay.addWidget(self.overall)
-        lay.addWidget(self.file_label)
-        lay.addWidget(self.file_bar)
-        lay.addWidget(self.stats)
+        lay.addLayout(file_row)
         self.hide()
 
     # --- lifecycle ---

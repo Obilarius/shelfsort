@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QHBoxLay
                                QWidget)
 
 from .i18n import N_, tr
+from .look import HintTable, primary, setup_table
 from .plex_sync import OrderingOption, SpecialsReport
 
 COLS = ["", N_("Serie"), N_("Aktuelle Reihenfolge"), N_("Specials"), N_("Neue Reihenfolge"), N_("Im Ablauf"),
@@ -33,14 +34,17 @@ class SpecialsTab(QWidget):
         self.only_better = QCheckBox(tr("Nur Serien, bei denen eine Reihenfolge hilft"))
         self.only_better.setChecked(True)
         self.only_better.toggled.connect(lambda _: self._fill())
-        self.scan_btn = QPushButton(tr("Serien prüfen"))
+        self.scan_btn = primary(QPushButton(tr("Serien prüfen")))
         self.scan_btn.clicked.connect(lambda: self.scan_requested.emit(True))
         top = QHBoxLayout()
         top.addWidget(self.only_better)
         top.addStretch()
         top.addWidget(self.scan_btn)
 
-        self.table = QTableWidget(0, len(COLS))
+        self.table = HintTable(0, len(COLS))
+        self.table.hint = tr("„Serien prüfen“ sucht alle Serien mit Specials und zeigt, welche Reihenfolge sie "
+                             "in die Staffeln einsortiert. Braucht die Plex-Anmeldung.")
+        setup_table(self.table, badge_columns=(5, 7))
         self.table.setHorizontalHeaderLabels([tr(c) for c in COLS])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -59,7 +63,7 @@ class SpecialsTab(QWidget):
         split.addWidget(self.details)
         split.setSizes([420, 200])
 
-        self.apply_btn = QPushButton(tr("Reihenfolge in Plex umstellen"))
+        self.apply_btn = primary(QPushButton(tr("Reihenfolge in Plex umstellen")))
         self.apply_btn.setMinimumWidth(220)
         self.apply_btn.clicked.connect(self._apply)
         hint = QLabel(tr("Danach prüft das Tool die umgestellten Serien mit dem Plex-Abgleich und schlägt die "

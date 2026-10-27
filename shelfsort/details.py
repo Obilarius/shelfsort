@@ -1,7 +1,7 @@
 """Side panel showing what a plan row was matched to: cover, metadata, episode still."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QLocale, QSize, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
@@ -163,7 +163,8 @@ class DetailsPanel(QScrollArea):
             meta.append(tr("Kinostart {date}", date=_date_de(m.date)) if m.kind == "movie" else
                         tr("Erstausstrahlung {date}", date=_date_de(m.date)))
         if m.vote_count:
-            meta.append(tr("★ {rating} ({count} Bewertungen)", rating=f"{m.vote_average:.1f}", count=m.vote_count))
+            meta.append(tr("★ {rating} ({count} Bewertungen)", rating=f"{m.vote_average:.1f}",
+                           count=QLocale(i18n.language()).toString(m.vote_count)))
         self.meta.setText("  ·  ".join(meta))
         self.link.setText(tr('<a href="{url}">Auf TMDB ansehen</a>', url=m.url()) + f"  ·  tmdb-{m.tmdb_id}")
         self.overview.setText(m.overview or tr("Keine Beschreibung vorhanden."))

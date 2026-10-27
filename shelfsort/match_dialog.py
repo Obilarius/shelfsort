@@ -1,12 +1,13 @@
 """Manual TMDB search with posters and overview."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QLocale, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIntValidator, QPixmap
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit,
                                QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox,
                                QSplitter, QVBoxLayout, QWidget)
 
+from . import i18n
 from .details import _date_de
 from .i18n import tr
 from .matcher import norm, year_of
@@ -203,7 +204,7 @@ class MatchDialog(QDialog):
             if orig and orig != title:
                 line2.append(orig)
             if r.get("vote_count"):
-                line2.append(f"★ {r.get('vote_average', 0):.1f} ({r['vote_count']})")
+                line2.append(f"★ {r.get('vote_average', 0):.1f} ({QLocale(i18n.language()).toString(r['vote_count'])})")
             item = QListWidgetItem(f"{title} ({y or '?'})" + ("\n" + "  ·  ".join(line2) if line2 else ""))
             item.setSizeHint(QSize(0, THUMB.height() + 8))
             item.setIcon(self._placeholder)  # keeps text aligned for results without a cover
@@ -238,7 +239,7 @@ class MatchDialog(QDialog):
             meta.append(tr("Kinostart {date}", date=shown) if movie else tr("Erstausstrahlung {date}", date=shown))
         if r.get("vote_count"):
             meta.append(tr("★ {rating} von {count} Bewertungen", rating=f"{r.get('vote_average', 0):.1f}",
-                           count=r["vote_count"]))
+                           count=QLocale(i18n.language()).toString(r["vote_count"])))
         meta.append(f"tmdb-{r['id']}")
         self.d_meta.setText("  ·  ".join(meta))
         self.d_overview.setText(r.get("overview") or tr("Keine Beschreibung vorhanden."))

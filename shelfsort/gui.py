@@ -22,6 +22,7 @@ from .audit import AuditOptions, build_audit_plan
 from .config import KINDS, Config
 from .details import DetailsPanel
 from .dialogs import SettingsDialog, show_about
+from .look import PRIMARY_QSS, HintTable, primary, setup_table
 from .match_dialog import MatchDialog
 from .executor import Blocked, Reporter, TransferInfo, execute, move_file
 from .history_dialog import HistoryDialog
@@ -88,12 +89,15 @@ class Worker(QObject):
 
 # --- table --------------------------------------------------------------------------------
 
-class PlanTable(QTableWidget):
+class PlanTable(HintTable):
     COLS = ["", N_("Status"), N_("Typ"), N_("Aktuell"), N_("Neu"), N_("Hinweis")]
 
-    def __init__(self, bases: Callable[[], list[Path]]):
+    def __init__(self, bases: Callable[[], list[Path]], hint: str = ""):
         super().__init__(0, len(self.COLS))
         self.bases = bases
+        self.hint = hint
+        setup_table(self, badge_columns=(1,))
+        self.setTextElideMode(Qt.ElideMiddle)  # keep the end of a path visible: file name and title
         self.items: list[PlanItem] = []
         self.setHorizontalHeaderLabels([tr(c) if c else c for c in self.COLS])
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -211,6 +215,7 @@ class MainWindow(QMainWindow):
         naming.set_scheme(naming.scheme_from_config(self.cfg))
         applog.environment(self.cfg)
         self.setWindowTitle("ShelfSort")
+        self.setStyleSheet(PRIMARY_QSS)
         fit_to_screen(self, 1400, 820)
         self.tmdb: TMDB | None = None
         self._thread: QThread | None = None
@@ -253,7 +258,8 @@ class MainWindow(QMainWindow):
         split = QSplitter(Qt.Vertical)
         split.addWidget(top)
         split.addWidget(self.log_view)
-        split.setSizes([620, 160])
+        split.setSizes([1000, 70])
+        split.setCollapsible(1, True)
         self.setCentralWidget(split)
 
         self.progress = QProgressBar()
@@ -291,16 +297,16 @@ class MainWindow(QMainWindow):
         self.folder.setPlaceholderText(tr(r"z. B. H:\Downloads – oder Ordner ins Fenster ziehen"))
         browse = QPushButton(tr("Ordner wählen…"))
         browse.clicked.connect(self._browse)
-        self.scan_btn = QPushButton(tr("Scannen"))
+        self.scan_btn = primary(QPushButton(tr("Scannen")))
         self.scan_btn.clicked.connect(self.scan_import)
         top = QHBoxLayout()
         top.addWidget(self.folder, 1)
         top.addWidget(browse)
         top.addWidget(self.scan_btn)
 
-        self.import_table = PlanTable(self._bases)
+        self.import_table = PlanTable(self._bases, tr("Download-Ordner wählen oder ins Fenster ziehen, dann „Scannen“."))
         self.import_table.cellDoubleClicked.connect(lambda r, _: self._rematch(self.import_table, r, True))
-        self.import_run = QPushButton(tr("Übertragen"))
+        self.import_run = primary(QPushButton(tr("Übertragen")))
         self.import_run.clicked.connect(lambda: self.run_plan(self.import_table))
 
         w = QWidget()
@@ -354,7 +360,7 @@ class MainWindow(QMainWindow):
         self.opt_titles.setToolTip(tr("Aus: nur Struktur prüfen (Ordner, SxxEyy, Staffelordner), vorhandene Titel bleiben.\n"
                                       "An: Titel jeder Folge mit TMDB abgleichen (langsamer, viele Änderungen)."))
         self.opt_empty.setChecked(True)
-        self.audit_btn = QPushButton(tr("Bibliothek prüfen"))
+        self.audit_btn = primary(QPushButton(tr("Bibliothek prüfen")))
         self.audit_btn.clicked.connect(self.scan_audit)
         options = QHBoxLayout()
         options_label = QLabel(tr("Prüfen:"))
@@ -369,9 +375,9 @@ class MainWindow(QMainWindow):
         top.addLayout(options)
         self._fill_library_checks()
 
-        self.audit_table = PlanTable(self._bases)
+        self.audit_table = PlanTable(self._bases, tr("Oben Bibliotheken und Prüfungen anhaken, dann „Bibliothek prüfen“. Geändert wird erst, wenn du ausgewählte Einträge ausführst."))
         self.audit_table.cellDoubleClicked.connect(lambda r, _: self._rematch(self.audit_table, r, False))
-        self.audit_run = QPushButton(tr("Ausgewählte ausführen"))
+        self.audit_run = primary(QPushButton(tr("Ausgewählte ausführen")))
         self.audit_run.clicked.connect(lambda: self.run_plan(self.audit_table))
 
         w = QWidget()
