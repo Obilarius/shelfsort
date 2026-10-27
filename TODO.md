@@ -62,8 +62,9 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 ## 7. Veröffentlichung
 
-- [ ] README für Fremde umschreiben: Was macht es, für wen, Screenshots/GIF, Installation, erste Schritte, FAQ (SmartScreen, TMDB-Key besorgen, Plex-Login).
-- [ ] `CONTRIBUTING.md` und Issue-Vorlagen (Bug/Wunsch).
+- [x] README für Fremde: englisch (`README.md`) und deutsch (`README.de.md`) – was es macht, Installation, erste Schritte, FAQ, Datenschutz. Entwicklerteil in `CONTRIBUTING.md`.
+- [ ] Screenshots für die README (`docs/screenshots/`, mit Beispieldaten statt der eigenen Bibliothek).
+- [x] `CONTRIBUTING.md` und Issue-Vorlagen (Bug/Wunsch, `.github/ISSUE_TEMPLATE/`).
 - [ ] Spenden-Link (Buy Me a Coffee / Ko-fi / GitHub Sponsors) in README und App.
 - [ ] Erste Ankündigung, z. B. auf r/PleX – Schwerpunkt auf dem, was andere Tools nicht können: Plex-Abgleich nach der eingestellten Reihenfolge und der Specials-Check.
 

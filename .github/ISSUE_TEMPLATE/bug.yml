@@ -1,0 +1,27 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead? File names help (e.g. the release name that was not recognised).
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: ShelfSort version
+      description: See *About*.
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: System
+      options: [Windows, Linux, from source]
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Log file
+      description: "*History → Open log file*. Paste the relevant part or attach the file – remove anything private first."
+      render: text

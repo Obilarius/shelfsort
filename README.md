@@ -1,137 +1,111 @@
 # ShelfSort
 
-Kleine GUI für Windows, die Filme und Serien so benennt, wie Plex sie erwartet, sie in die Bibliothek verschiebt – und die bestehende Bibliothek auf falsche Namen, falsche Folgennummern und leere Ordner prüft.
+**Sort downloaded movies and TV shows into your Plex library – named the way Plex expects, with the episode numbers Plex actually uses.**
 
-> ShelfSort ist ein unabhängiges Projekt und kein Produkt von Plex, Inc. „Plex“ ist eine Marke von Plex, Inc.
+ShelfSort is a small desktop app for Windows and Linux. Point it at a download folder: it recognises every movie and episode, finds it on TMDB, shows you what it will do, and moves the files into your Plex library with clean names. It can also check the library you already have and fix what is wrong.
 
-## Start
+[Deutsch](README.de.md) · [Download](https://github.com/Obilarius/shelfsort/releases/latest) · [Changelog](CHANGELOG.md)
 
-`ShelfSort.bat` doppelklicken. Beim ersten Start führt ein Assistent durch die Einrichtung (später erneut über **Einstellungen → Allgemein → Einrichtungsassistent starten**):
+<!-- screenshots: docs/screenshots/import.png, docs/screenshots/check.png -->
 
-1. **Sprache** – App-Sprache (bisher Deutsch) und Standard-Sprache der Titel.
-2. **TMDB-Key** eintragen – kostenlos auf themoviedb.org (Einstellungen → API).
-3. **Bei Plex anmelden** – die Anmeldung läuft auf plex.tv im Browser, ShelfSort bekommt nur den Zugangsschlüssel, nie das Passwort. Ohne Plex geht es auch („Ohne Plex weiter“), dann fehlen Scan, Plex-Abgleich und Specials-Check.
-4. **Server wählen** – ShelfSort findet die Server des Kontos und testet, welche Adresse erreichbar ist.
-5. **Bibliotheken wählen** – alle Film- und Serien-Bibliotheken aus Plex anhaken, die ShelfSort verwalten soll (z. B. „Filme“, „Disney“, „Serien“). ShelfSort sucht selbst, wo ihr Ordner auf diesem Computer liegt (der Server sieht z. B. `/data/movies`, hier ist es `X:\Medien\movies`), und prüft das an echten Dateien. Pro Typ ist eine Bibliothek **Standard** für neue Importe – bei einer Neueinrichtung die größte. Jede Bibliothek hat ihre eigene **Titelsprache**, vorbelegt mit ihrer Sprache in Plex (z. B. Englisch für eine OV-Bibliothek); weicht sie von Plex ab, warnt die Übersicht am Ende. Bibliotheken für eigene Videos („Andere Videos“) sind standardmäßig nicht angehakt.
+> ShelfSort is an independent project and not affiliated with Plex, Inc. “Plex” is a trademark of Plex, Inc.
 
-Unter **Einstellungen** lässt sich danach jede Sache direkt ändern, ohne den Assistenten:
+## What makes it different
 
-| Reiter | Inhalt |
+Most renamers number episodes the way TMDB or TheTVDB does. Plex, though, numbers them by the **episode ordering set for each show** – and for many shows that is not the default (Doctor Who in BBC iPlayer order, crime shows in DVD order, kids’ shows where TMDB and TheTVDB disagree). A file named after the “wrong” ordering shows up in Plex as the wrong episode or not at all.
+
+ShelfSort asks your Plex server which ordering each show uses and names the files to match:
+
+- **Plex sync** – compares every episode in your library with the episode list Plex uses for that show and suggests corrected numbers, e.g. a Christmas special moved from `S07E00` to `S06E14`, or a season that is off by one.
+- **Specials check** – Plex skips season 0 in “Continue watching”. ShelfSort shows, per show, which of the orderings available in Plex puts the specials into the regular seasons, and switches the show to it on request.
+
+## Features
+
+- **Import from download folders** – subfolders are scanned too; messy release names (`Some.Movie.2016.German.DL.1080p.BluRay.x264.mkv`) are taken apart. Subtitles move along with their video.
+- **You decide** – every planned rename is listed first. Green = sure match (preselected), yellow = please review, red = conflict. Wrong match? Double-click and search TMDB yourself, with covers and descriptions.
+- **Safe transfer** – across drives files are copied to `*.partial`, the size is checked, and only then is the original removed. Progress, speed and time left are shown; cancelling leaves the original untouched.
+- **Check library** – wrong folder or file names, missing year or TMDB ID, episodes in the wrong season folder, missing episode titles, duplicates, empty folders.
+- **Several libraries** – e.g. “Movies”, “Kids”, “TV Shows”; one default per type for new imports, each with its own title language (useful for an original-language library).
+- **Undo** – every run is recorded; **History** shows it and puts everything back.
+- **Plex scan** – afterwards only the changed folders are rescanned.
+- **German and English** user interface.
+
+Naming scheme (the one Plex recommends):
+
+| | Example |
 |---|---|
-| Allgemein | App-Sprache, Sprache der Titel, Mindestgröße für Videos, Assistent erneut starten |
-| Plex | Anmelden/Abmelden, Server wählen oder Adresse von Hand; unter „Erweitert“ URL und Token direkt |
-| Bibliotheken | dieselbe Liste wie im Assistenten (verwalten, Ordner, Titelsprache, Standard) |
-| TMDB | API-Key mit Prüfung |
+| Movie | `Movies/Blade Runner 2049 (2017) {tmdb-335984}/Blade Runner 2049 (2017).mkv` |
+| Episode | `TV Shows/Doctor Who {tmdb-57243}/Season 06/Doctor Who - S06E01 - The Impossible Astronaut.mkv` |
 
-Die Einstellungen liegen in `%APPDATA%\ShelfSort\config.json` (Linux: `~/.config/ShelfSort`), nicht im Repo.
+## Installation
 
-Einrichtung auf einem neuen Rechner:
+**Windows 10/11:** download `ShelfSort-<version>-windows-x64.zip` from [Releases](https://github.com/Obilarius/shelfsort/releases/latest), unzip it anywhere and start `ShelfSort.exe`. No installer, nothing is written outside the folder except your settings.
 
-```
-py -3.12 -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-```
+**Linux (x64):** download `ShelfSort-<version>-linux-x64.tar.xz`, then
 
-## Schema
-
-| | Beispiel |
-|---|---|
-| Film | `movies\F1 - Der Film (2025) {tmdb-911430}\F1 - Der Film (2025).mkv` |
-| Folge | `tvshows\Die wilden Siebziger {tmdb-52}\Season 05\Die wilden Siebziger - S05E04 - Die Wechseljahre.mkv` |
-
-- Bestehende Film- und Serienordner (per TMDB-ID erkannt) werden weiterverwendet – in jeder verwalteten Bibliothek. Neue Folgen landen also bei ihrer Serie, auch wenn die in „Disney“ statt „Serien“ liegt. Neues kommt in die Standard-Bibliothek; per Rechtsklick → **Ziel-Bibliothek** lässt sich das für markierte Zeilen ändern.
-- Staffelordner (`Season 05` / `Staffel 13`) werden weiterverwendet.
-- Die Folgennummer kommt aus dem Dateinamen, der Folgentitel aus Plex: bei Serien in der Bibliothek in der dort eingestellten Reihenfolge (z. B. Doctor Who „TheTVDB (BBC iPlayer)“), bei neuen Serien in der Standard-Reihenfolge der Bibliothek – also so, wie Plex sie nach dem Import nummeriert. TMDB zählt manchmal anders (Bluey S03E49 ist dort ein Special). Nur ohne Plex-Token oder wenn Plex die Serie nicht kennt, kommt der Titel von TMDB.
-- Dateien mit Kürzel vor dem Titel (`abc-show.s03e02…`) werden über den Ordnernamen bzw. ohne Kürzel erkannt.
-- Untertitel (`Film.de.forced.srt`) wandern mit.
-- Für Windows verbotene Zeichen werden ersetzt: `F1: Der Film` → `F1 - Der Film`.
-
-## Import
-
-Ordner wählen oder ins Fenster ziehen → alle Unterordner werden gescannt. Film oder Serie wird am Dateinamen erkannt, nicht am Ordner; auch technische Dateinamen wie `Some.Movie.2016.German.DL.1080p.BluRay.x264.mkv` werden zerlegt.
-
-- **Grün (Bereit):** sicherer Treffer, vorausgewählt.
-- **Gelb (Prüfen):** unsicherer Treffer, ähnlicher Ordner oder Film schon vorhanden, Folge in Plex-Reihenfolge unbekannt – nicht vorausgewählt.
-- **Rot (Konflikt):** Ziel existiert bereits.
-
-Rechts zeigt der Detail-Bereich zur markierten Zeile Cover, Titel, Jahr, Bewertung, Beschreibung und Link zu TMDB, bei Folgen zusätzlich Folgentitel, Szenenbild und Folgenbeschreibung. Mit den Pfeiltasten durch die Liste gehen.
-
-Falscher Treffer → Doppelklick oder „Anderen Treffer wählen…“: TMDB-Suche mit Covern und Beschreibung, Jahr optional (findet mit Jahr nichts, wird ohne gesucht), bei Folgen auch Staffel/Folge.
-
-„Übertragen“ kopiert nach `*.partial`, prüft die Größe, benennt um und löscht erst dann das Original. Leere Release-Ordner gehen in den Papierkorb. Danach scannt Plex nur die betroffenen Ordner.
-
-Während der Übertragung zeigt ein Panel oben Gesamt- und Dateifortschritt, Geschwindigkeit und Restzeit; die Tabelle zeigt live, welche Zeile läuft. „Abbrechen“ verwirft die laufende Kopie, das Original bleibt, der Rest wird nicht angefasst.
-
-## Verlauf und Rückgängig
-
-Jeder Lauf („Übertragen“ bzw. „Ausführen“) wird Schritt für Schritt mitgeschrieben – auch wenn das Programm mittendrin abstürzt. **Verlauf** im Menü zeigt die letzten 50 Läufe mit allen Änderungen; „Rückgängig machen“ bringt Dateien und Ordner zurück an ihren alten Platz und lässt Plex neu scannen.
-
-- Was sich seitdem verändert hat (Datei weg, anders groß, alter Platz belegt), wird übersprungen und gemeldet, nie überschrieben.
-- Gelöschte leere Ordner werden neu angelegt, ihr alter Inhalt (z. B. `poster.jpg`) ist weg.
-- Release-Ordner, die in den Papierkorb gingen, stellt man dort wieder her; die Videos selbst landen auch ohne das wieder im (neu angelegten) Ordner.
-- Ordner, die durch das Rückgängigmachen leer werden, verschwinden – nur innerhalb der Bibliotheken.
-
-Alles aus dem Log-Fenster plus Fehlerdetails steht zusätzlich in `%APPDATA%\ShelfSort\logs\shelfsort.log` („Log-Datei öffnen“ im Verlauf) – praktisch für Fehlermeldungen.
-
-## Bibliothek prüfen
-
-Oben die **Bibliotheken** anhaken, die geprüft werden sollen (alle verwalteten stehen dort, z. B. „Disney (Filme)“, „Filme“, „Serien“). Geprüft wird:
-
-- **in Film-Bibliotheken:** fehlendes Jahr / TMDB-ID im Ordnernamen, Dateiname ≠ Ordnername, doppelte Filme (Konflikt).
-- **in Serien-Bibliotheken:** Release-Namen bei Folgen, Folgen im falschen Staffelordner, fehlende Folgentitel.
-
-Zusätzlich wählbar:
-
-- **Leere Ordner:** Ordner ohne Video. Werden **nie** vorausgewählt und auf dem Netzlaufwerk endgültig gelöscht (eigene Warnung).
-- **Plex-Abgleich (Folgennummern):** vergleicht jede Folge mit der Folgenliste, die Plex für die Serie verwendet (inkl. Folgen ohne Datei), und schlägt korrigierte Nummern vor – z. B. Weihnachtsspecials von `S07E00` nach `S06E14`, oder eine um eins verschobene Staffel. Titel werden deutsch und englisch verglichen. Verschoben wird nur, wenn der Titel eindeutig zu einer anderen Folge passt; bei bloß anders übersetzten Titeln bleibt die Folge, wo sie ist. Braucht den Plex-Token.
-- **Episodentitel übernehmen:** ersetzt vorhandene Titel durch die von Plex/TMDB (sonst bleiben sie, wie sie sind).
-
-Saubere Ordnernamen werden direkt als Titel gesucht (`10 Cloverfield Lane`, `Blade Runner 2049`), Release-Namen werden zerlegt. Umschreibungen ohne Umlaute (`Einoede`) werden auch mit Umlauten gesucht.
-
-Ketten-Umbenennungen (E06→E07, E05→E06, …) laufen über Zwischennamen, damit nichts kollidiert. Ist eine Zielnummer durch eine Datei belegt, die nicht verschoben wird, gibt es einen Konflikt statt einer doppelten Folge. Wurden Ordner umbenannt, scannt Plex danach die ganze Bibliothek.
-
-## Specials
-
-Specials in Staffel 0 überspringt Plex bei „Weiter schauen“. Manche Episoden-Reihenfolgen (TheTVDB DVD, BBC iPlayer, …) sortieren sie in die normalen Staffeln ein – Plex kann das nur über die Reihenfolge, nicht pro Folge.
-
-„Serien prüfen“ geht alle Serien mit Specials durch und zeigt pro Serie, welche der in Plex verfügbaren Reihenfolgen wie viele Specials in den Ablauf bringt, wie viele Special bleiben und wie viele es dort gar nicht gibt (z. B. Making-ofs – vorhandene Dateien dafür kann Plex danach nicht mehr zuordnen). Unten stehen die Specials einzeln, mit ihrer neuen Nummer.
-
-Angehakte Serien → „Reihenfolge in Plex umstellen“: stellt die Reihenfolge der Serie in Plex um, lädt die Metadaten neu und startet den Plex-Abgleich für genau diese Serien. Die neuen Dateinummern erscheinen unter „Bibliothek prüfen“ und werden erst nach Prüfen und „Ausführen“ umbenannt.
-
-## Projektstruktur
-
-| Datei | Inhalt |
-|---|---|
-| `gui.py`, `details.py`, `match_dialog.py`, `transfer_panel.py`, `specials_tab.py`, `dialogs.py` | Oberfläche |
-| `importer.py`, `audit.py` | Plan für Import bzw. Bibliotheksprüfung |
-| `executor.py` | Ausführen: Umbenennen, Kopieren, Löschen, Aufräumen |
-| `history.py`, `history_dialog.py`, `applog.py` | Verlauf, Rückgängig, Log-Datei |
-| `parse.py`, `naming.py`, `matcher.py` | Release-Namen zerlegen, Namensschema, TMDB-Treffer bewerten |
-| `tmdb.py`, `plex.py`, `plex_sync.py`, `posters.py` | TMDB, Plex-Scan, Plex-Folgenlisten und Reihenfolgen, Bilder |
-
-## Datenquellen & Lizenz
-
-- **TMDB:** This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB. Jeder Nutzer trägt seinen eigenen, kostenlosen TMDB-API-Key ein.
-- **Plex:** ShelfSort spricht mit deinem eigenen Plex Media Server. Für den Plex-Abgleich, den Specials-Check und Folgentitel in Plex-Reihenfolge nutzt es zusätzlich Plex' Metadatendienst (`metadata.provider.plex.tv`). Dieser Dienst ist **nicht offiziell dokumentiert** und kann sich jederzeit ändern. Fällt er aus, kommen Folgentitel von TMDB und der Plex-Abgleich wird mit einem Hinweis übersprungen – Import und Namensprüfung laufen weiter.
-- **Lizenz:** MIT, siehe `LICENSE`. Verwendete Bibliotheken und ihre Lizenzen: `THIRD_PARTY_LICENSES.md`.
-
-## Sprachen der Oberfläche
-
-Deutsch und Englisch; beim ersten Start passend zu Windows, später im Assistenten umstellbar (ohne Neustart). Im Code steht der deutsche Text (`tr("Abbrechen")`), die Übersetzungen liegen in `shelfsort/i18n/<sprache>.json`. Eine neue Sprache: `en.json` kopieren, übersetzen und in `shelfsort/i18n.py` bei `LANGUAGES` eintragen. Der Test `tests/test_i18n.py` prüft, dass jeder Text im Code übersetzt ist und die Platzhalter stimmen.
-
-## Programm bauen
-
-```
-.venv\Scripts\pip install pyinstaller
-.venv\Scripts\python tools\build.py
+```bash
+tar -xf ShelfSort-*-linux-x64.tar.xz
 ```
 
-Ergebnis: `dist\ShelfSort\` (Ordner mit `ShelfSort.exe`) und `dist\ShelfSort-<Version>-windows-x64.zip`. Das Skript prüft die gebaute App mit `ShelfSort.exe --selftest` und legt die Lizenztexte aller Bibliotheken nach `licenses\`. Unter Linux/macOS funktioniert es genauso und baut die Version für das jeweilige System (Linux als `.tar.xz`).
+and start `ShelfSort/ShelfSort`. Built on Ubuntu 22.04, so it runs on that and newer distributions.
 
-**Release:** Version in `shelfsort/__init__.py` erhöhen, Abschnitt `## <Version>` in `CHANGELOG.md` schreiben, committen, dann Tag pushen (`git tag v0.2.0`, `git push origin v0.2.0`). GitHub Actions testet, baut Windows und Linux (Ubuntu 22.04, läuft damit auch auf neueren Distributionen) und veröffentlicht das Release mit dem Changelog-Abschnitt als Text. Tests laufen außerdem bei jedem Push auf Windows und Linux. Das Icon entsteht mit `tools\make_icon.py`.
+**From source** (any system with Python 3.12): see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Tests
+## Getting started
 
-```
-.venv\Scripts\python -m pytest
-```
+On first start a setup wizard asks for:
+
+1. **Language** – of the app and of the titles (movie and episode names).
+2. **TMDB API key** – free: create an account on [themoviedb.org](https://www.themoviedb.org/signup), then *Settings → API* and request a key (“Developer”, personal use). Paste the “API Key” or the “API Read Access Token” – both work.
+3. **Plex sign-in** – opens plex.tv in your browser. ShelfSort only receives an access token, never your password. You can also continue without Plex; then renaming and moving work, but no Plex scan, Plex sync or specials check.
+4. **Server** – found through your Plex account; ShelfSort tests which address is reachable from this computer.
+5. **Libraries** – tick the movie and TV libraries ShelfSort should manage. It finds where their folders are on this computer (Plex may see `/data/movies` while this computer sees `X:\Media\movies` or `/mnt/media/movies`) and checks that against real files.
+
+Then: **Import** → choose your download folder → **Scan** → check the list → **Transfer**.
+
+Everything can be changed later under **Settings**, the wizard can be run again from there.
+
+## FAQ
+
+**Windows says “Windows protected your PC”.**
+The program is not code-signed (that costs money every year). Click *More info → Run anyway*. The builds are made by GitHub Actions straight from this repository’s source.
+
+**Linux: it does not start / “could not load the Qt platform plugin xcb”.**
+Install the XCB cursor library, which newer Qt versions need: `sudo apt install libxcb-cursor0` (Debian/Ubuntu) or `sudo dnf install xcb-util-cursor` (Fedora). Start it from a terminal to see the error message.
+
+**Does ShelfSort delete anything?**
+Only two things, and only with your OK: release folders that are empty after the import go to the **recycle bin**; empty folders found by *Check library* are never preselected and are deleted permanently (network shares have no recycle bin) after an extra warning.
+
+**Something went wrong – can I go back?**
+**History** lists every run with all changes. *Undo* moves files and folders back. Anything that has changed since is skipped, never overwritten.
+
+**An episode got the wrong number.**
+Check which episode ordering the show uses in Plex (*Edit → Advanced → Episode ordering*) – ShelfSort follows it. The *Specials* tab shows the orderings side by side.
+
+**Where are my settings? How do I uninstall?**
+Settings, history and log file are in `%APPDATA%\ShelfSort` (Windows) or `~/.config/ShelfSort` (Linux). To uninstall, delete the program folder and that folder.
+
+**Something does not work.**
+Please [open an issue](https://github.com/Obilarius/shelfsort/issues) and attach the log file (*History → Open log file*). Remove anything private from it first; it contains file and folder names.
+
+## Privacy
+
+ShelfSort has no telemetry and no account of its own. It talks to:
+
+- **TMDB** (`api.themoviedb.org`, `image.tmdb.org`) – searching titles, loading covers, with your own API key.
+- **Plex** – `plex.tv` for sign-in and finding your server, your own Plex server, and Plex’s metadata service `metadata.provider.plex.tv` for the episode orderings.
+
+Your TMDB key and Plex token are stored only in the settings file on your computer.
+
+## Good to know
+
+- Plex’s metadata service is **not officially documented** and may change. If it fails, episode titles come from TMDB and the Plex sync is skipped with a notice – import and the name check keep working.
+- This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+## Support
+
+ShelfSort is free and stays free – no paid features, no ads. If it saves you time, you can buy me a coffee. <!-- TODO: donation link -->
+
+## License
+
+MIT, see [LICENSE](LICENSE). Libraries used and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

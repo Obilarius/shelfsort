@@ -1,0 +1,10 @@
+name: Feature request
+description: An idea for ShelfSort
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What would you like ShelfSort to do?
+      description: Describe the situation you are in – an example with file or show names helps most.
+    validations:
+      required: true
