@@ -22,6 +22,7 @@ class Op:
     src: Path
     dst: Path | None = None
     text: str = ""  # content for "write"
+    replaces: Path | None = None  # "move" that replaces this existing file (better quality)
 
 
 @dataclass

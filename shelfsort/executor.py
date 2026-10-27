@@ -92,11 +92,13 @@ def _gb(n: int) -> str:
 
 
 def move_file(src: Path, dst: Path, progress: Callable[[int, int], None] | None = None,
-              check: Callable[[], None] | None = None) -> None:
-    _check_free(src, dst)
+              check: Callable[[], None] | None = None, overwrite: bool = False) -> None:
+    """overwrite: dst may exist and is replaced - only once the new file is complete."""
+    if not overwrite:
+        _check_free(src, dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
     if not crosses_drive(src, dst):
-        os.rename(src, dst)
+        os.replace(src, dst) if overwrite else os.rename(src, dst)
         return
     # Cross-drive: copy to .partial (Plex ignores it), verify, then swap in and delete source.
     # Cancelling or a failed copy (network gone, disk full) removes the .partial; the source stays.
@@ -289,14 +291,19 @@ def execute(items: list[PlanItem], rep: Reporter, library_roots: list[Path]) -> 
 
                 progress(0, size)
                 # Only the main video may be cancelled mid-copy; subtitles follow it.
+                old = fix(op.replaces) if op.replaces else None
                 try:
-                    move_file(src, dst, progress, rep.check if i == 0 else None)
+                    move_file(src, dst, progress, rep.check if i == 0 else None, overwrite=old == dst)
+                    if old and old != dst and old.exists():
+                        os.remove(old)  # the better copy is in place; the old one had another name
                 except SourceKept as e:
                     # the target is complete and verified - keep going, but the original needs a hand
                     rep.log(tr("ACHTUNG: {name} ist kopiert, aber das Original ließ sich nicht löschen ({error}) "
                                "– bitte von Hand löschen", name=src.name, error=e))
                     it.add_note(tr("Original nicht gelöscht"))
-                rep.journal.moved(src, dst, size)
+                rep.journal.moved(src, dst, size, replaced=old)
+                if old:
+                    rep.log(tr("Ersetzt: {old}", old=old.name))
                 parked.pop(id(op), None)
                 if cross:
                     base += size

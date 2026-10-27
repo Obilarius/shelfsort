@@ -61,7 +61,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 ## 6. Optik & Bedienung
 
 - [ ] Optische Feinarbeit (eigene Liste).
-- [ ] Hell-/Dunkel-Modus prüfen, hohe DPI, Tastaturbedienung.
+- [x] Hell-/Dunkel-Modus und 100/150/200 % Skalierung geprüft: Farben passen in beiden Modi; Fenster sind jetzt höchstens 90 % des Bildschirms groß (vorher bei 150 % größer als ein Full-HD-Bildschirm). Tabellen: Leertaste hakt markierte Zeilen an/ab, Enter = Treffer wählen.
+- [ ] Bei 200 % auf kleinen Bildschirmen braucht das Übertragungs-Panel viel Höhe – kompaktere Darstellung überlegen.
 - [x] Über-Dialog: Version, Lizenz, TMDB-Hinweis, Link zu GitHub und Spenden-Link.
 
 ## 7. Veröffentlichung
@@ -75,7 +76,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 ## Später / Ideen
 
 - [ ] Playlist „Serie – komplett“ in Ausstrahlungsreihenfolge für Serien, bei denen keine Reihenfolge die Specials einsortiert.
-- [ ] Upgrade ersetzen: bessere Qualität eines vorhandenen Films anbieten statt nur „schon vorhanden“.
+- [x] Upgrade ersetzen: Film schon da → Qualität vergleichen (Auflösung, Quelle, Remux/Rip aus dem Namen; sonst nur Größe) und Ersetzen anbieten; nie vorausgewählt, alte Datei erst nach vollständiger Kopie gelöscht.
+- [ ] *Optional:* Qualität der vorhandenen Datei über Plex abfragen (Auflösung/Bitrate), wenn ihr Name nichts verrät.
 - [ ] Ordner überwachen (automatischer Import, wenn ein Download fertig ist).
 
 ### Jellyfin und Kodi (erst bei Nachfrage nach 0.1.0)

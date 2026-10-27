@@ -53,9 +53,12 @@ class Journal:
         """File or folder renamed / moved on the same drive."""
         self._record("rename", src=src, dst=dst)
 
-    def moved(self, src: Path, dst: Path, size: int) -> None:
-        """File moved; size identifies it again on undo."""
-        self._record("move", src=src, dst=dst, size=size)
+    def moved(self, src: Path, dst: Path, size: int, replaced: Path | None = None) -> None:
+        """File moved; size identifies it again on undo. replaced: an older copy that is gone for good."""
+        if replaced:
+            self._record("move", src=src, dst=dst, size=size, replaced=replaced)
+        else:
+            self._record("move", src=src, dst=dst, size=size)
 
     def created(self, path: Path, size: int) -> None:
         """New small file (e.g. .nfo); undo removes it if it is unchanged."""
@@ -201,6 +204,8 @@ def undo(run: Run, log: Callable[[str], None], library_roots: list[Path],
                 left.add(dst.parent)
                 ok += 1
                 log(tr("Zurück: {new} → {old}", new=dst.name, old=src))
+                if e.get("replaced"):
+                    log(tr("Die ersetzte Datei {name} lässt sich nicht wiederherstellen.", name=Path(e["replaced"]).name))
             elif op == "delete_dir":
                 path = Path(e["path"])
                 path.mkdir(parents=True, exist_ok=True)

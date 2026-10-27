@@ -93,4 +93,5 @@ def test_import_adds_an_edition_next_to_the_existing_movie(tmp_path):
     assert ext.target.name == "American Sniper (2014) {edition-Extended}.mkv"
     assert ext.status == "ok" and "Fassung: Extended" in ext.note
     plain = by_name["American.Sniper.2014.1080p.WEB.x264-GRP.mkv"]
-    assert plain.status in ("review", "conflict") and "schon vorhanden" in plain.note
+    # the same edition again: offered as a replacement, never preselected
+    assert plain.status == "review" and not plain.selected and plain.ops[0].replaces is not None

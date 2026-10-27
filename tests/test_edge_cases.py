@@ -47,11 +47,11 @@ def test_share_gone_stops_the_run(tmp_path, monkeypatch):
     src, lib, items = _setup(tmp_path, n=3)
     real_move = executor.move_file
 
-    def move(s, d, *a):
+    def move(s, d, *a, **kw):
         if s.name == "m1.mkv":  # the share drops out during the second file
             shutil.rmtree(lib)
             raise OSError("Der Netzwerkpfad wurde nicht gefunden")
-        real_move(s, d, *a)
+        real_move(s, d, *a, **kw)
 
     monkeypatch.setattr(executor, "move_file", move)
     logs = []

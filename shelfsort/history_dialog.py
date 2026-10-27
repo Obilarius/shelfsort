@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QLabel, Q
 from . import history
 from .applog import LOG_FILE
 from .i18n import tr
+from .setup_widgets import fit_to_screen
 
 
 def open_log_file(parent=None) -> None:
@@ -24,7 +25,7 @@ class HistoryDialog(QDialog):
     def __init__(self, parent=None, busy: bool = False):
         super().__init__(parent)
         self.setWindowTitle(tr("Verlauf"))
-        self.resize(1000, 560)
+        fit_to_screen(self, 1000, 560)
         self.busy = busy
         self.runs = history.runs()
 

@@ -36,7 +36,7 @@ from .specials_tab import SpecialsTab
 from .tmdb import TMDB
 from .transfer_panel import TransferPanel
 from . import naming, update
-from .setup_widgets import run_async
+from .setup_widgets import fit_to_screen, run_async
 from .wizard import SetupWizard
 
 STATUS = {
@@ -158,6 +158,21 @@ class PlanTable(QTableWidget):
                 allowed = it.kind not in ("empty", "leftover") and it.status not in ("conflict", "error")
                 cell.setCheckState(Qt.Checked if on and allowed else Qt.Unchecked)
 
+    def keyPressEvent(self, event) -> None:
+        """Space: tick/untick all selected rows. Enter: choose a match (like a double-click)."""
+        rows = self.selected_rows()
+        if event.key() == Qt.Key_Space and rows:
+            cells = [c for r in rows if (c := self.item(r, 0)) and c.flags() & Qt.ItemIsUserCheckable]
+            if cells:
+                on = any(c.checkState() != Qt.Checked for c in cells)
+                for c in cells:
+                    c.setCheckState(Qt.Checked if on else Qt.Unchecked)
+            return
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and rows:
+            self.cellDoubleClicked.emit(rows[0], 0)
+            return
+        super().keyPressEvent(event)
+
     def selected_rows(self) -> list[int]:
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
@@ -194,7 +209,7 @@ class MainWindow(QMainWindow):
         self.cfg = Config.load()
         naming.set_scheme(naming.scheme_from_config(self.cfg))
         self.setWindowTitle("ShelfSort")
-        self.resize(1400, 820)
+        fit_to_screen(self, 1400, 820)
         self.tmdb: TMDB | None = None
         self._thread: QThread | None = None
         self._worker: Worker | None = None
@@ -803,14 +818,20 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, tr("Ausführen"), tr("Nichts ausgewählt."))
             return
         deletions = [it for it in todo if any(o.kind in ("delete_dir", "delete_file") for o in it.ops)]
+        replaced = [o.replaces for it in todo for o in it.ops if o.replaces and o.kind == "move"
+                    and o is it.ops[0]]
         moves = len(todo) - len(deletions)
         text = tr("{n} Einträge umbenennen/verschieben.", n=moves)
+        if replaced:
+            text += ("\n\n" + tr("{n} vorhandene Filme werden durch die neue Datei ERSETZT – die alte Datei wird "
+                                  "endgültig gelöscht, sobald die neue vollständig kopiert ist:", n=len(replaced)) + "\n" +
+                     "\n".join(f"  • {p.name}" for p in replaced[:15]) + ("\n  …" if len(replaced) > 15 else ""))
         if deletions:
             text += ("\n\n" + tr("{n} Einträge werden ENDGÜLTIG gelöscht (Netzlaufwerk, kein Papierkorb):",
                                   n=len(deletions)) + "\n" +
                      "\n".join(f"  • {it.source.name}" for it in deletions[:15]) +
                      ("\n  …" if len(deletions) > 15 else ""))
-        icon = QMessageBox.Warning if deletions else QMessageBox.Question
+        icon = QMessageBox.Warning if deletions or replaced else QMessageBox.Question
         box = QMessageBox(icon, tr("Ausführen"), text + "\n\n" + tr("Fortfahren?"), QMessageBox.Yes | QMessageBox.No, self)
         if box.exec() != QMessageBox.Yes:
             return

@@ -12,6 +12,7 @@ from .i18n import tr
 from .matcher import norm, year_of
 from .plan import Override
 from .posters import PosterLoader
+from .setup_widgets import fit_to_screen
 from .tmdb import TMDB
 
 THUMB = QSize(46, 69)
@@ -26,7 +27,7 @@ class MatchDialog(QDialog):
                  episode_fields: bool = False, kind_fixed: bool = False, context: str = "", parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("TMDB-Treffer wählen"))
-        self.resize(1000, 640)
+        fit_to_screen(self, 1000, 640)
         self.tmdb = tmdb
         self.result_override: Override | None = None
         self.posters = PosterLoader(self)

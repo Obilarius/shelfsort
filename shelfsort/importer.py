@@ -8,6 +8,7 @@ from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
 from .naming import SHOW_NFO, episode_name, movie_file, movie_folder, movie_name, show_folder
 from .parse import edition_in, is_extra, is_video, parse_release, walk_videos
+from .quality import compare, quality_of
 from .i18n import tr
 from .plan import Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import is_placeholder
@@ -126,11 +127,11 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
         item.add_note(tr("Film liegt schon in Bibliothek „{library}“", library=lib.title(lib.root_of(elsewhere))))
     elif existing:
         videos = [f for f in existing.iterdir() if f.is_file() and is_video(f) and not is_extra(f)]
-        same = [f.name for f in videos if edition_in(f) == p.edition]  # another edition is welcome
+        same = [f for f in videos if edition_in(f) == p.edition]  # another edition is welcome
         if same:
-            item.status = "review"
-            item.add_note(tr("Film schon vorhanden: {files}", files=', '.join(same)))
-        elif videos:
+            _offer_replace(item, video, same)
+            return
+        if videos:
             item.add_note(tr("weitere Fassung neben: {files}", files=', '.join(f.name for f in videos)))
     else:
         similar = lib.movie_by_title.get(norm(match.title))
@@ -140,6 +141,21 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
     if item.target.exists():
         item.status = "conflict"
         item.add_note(tr("Ziel existiert bereits"))
+
+
+def _offer_replace(item: PlanItem, video: Path, same: list[Path]) -> None:
+    """The movie is already there: offer to replace it if the new copy is better. Never preselected -
+    the old file is deleted for good once the new one is copied and verified."""
+    old = same[0]
+    verdict, note = compare(quality_of(video), quality_of(old))
+    item.add_note(note)
+    item.ops[0].replaces = old
+    for op in item.ops[1:]:  # subtitles with the same names as the old ones replace them too
+        if op.kind == "move" and op.dst.exists():
+            op.replaces = op.dst
+    item.status = "review" if verdict in (1, None) else "conflict"
+    if len(same) > 1:
+        item.add_note(tr("weitere vorhandene Dateien bleiben: {files}", files=", ".join(f.name for f in same[1:])))
 
 
 def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | None,

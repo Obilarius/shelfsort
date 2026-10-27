@@ -12,7 +12,7 @@ from .config import Config
 from .i18n import N_, tr
 from .naming_widget import NamingWidget
 from .setup_widgets import (GRAY, LanguageFields, LibrariesWidget, PlexLoginWidget, ServerWidget, TmdbKeyWidget,
-                            label)
+                            fit_to_screen, label)
 
 ASSETS = Path(__file__).parent / "assets"
 
@@ -38,7 +38,7 @@ class SettingsDialog(QDialog):
     def __init__(self, cfg: Config, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("Einstellungen"))
-        self.resize(900, 600)
+        fit_to_screen(self, 900, 600)
         self.cfg = cfg
         self.start_wizard = False  # set when the user asks for the setup wizard instead
         self.language_changed = False

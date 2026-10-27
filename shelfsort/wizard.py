@@ -9,8 +9,8 @@ from PySide6.QtWidgets import QCheckBox, QPushButton, QVBoxLayout, QWizard, QWiz
 
 from .config import KINDS, Config, language_name
 from .i18n import N_, tr
-from .setup_widgets import (BAD, GRAY, LanguageFields, LibrariesWidget, PlexLoginWidget, ServerWidget,
-                            TmdbKeyWidget, label, same_language)
+from .setup_widgets import (BAD, GRAY, LanguageFields, LibrariesWidget, PlexLoginWidget, ServerWidget, TmdbKeyWidget,
+                            fit_to_screen, label, same_language)
 
 PAGE_WELCOME, PAGE_TMDB, PAGE_PLEX, PAGE_SERVER, PAGE_LIBS, PAGE_DONE = range(6)
 
@@ -205,7 +205,7 @@ class SetupWizard(QWizard):
         self.language_switch: tuple[str, str] | None = None  # (app language, title language)
         self.setWindowTitle(tr("ShelfSort einrichten"))
         self.setWizardStyle(QWizard.ModernStyle)
-        self.resize(860, 580)
+        fit_to_screen(self, 860, 580)
         self.setPage(PAGE_WELCOME, WelcomePage(cfg, start_meta))
         self.setPage(PAGE_TMDB, TmdbPage(cfg))
         self.setPage(PAGE_PLEX, PlexLoginPage(cfg))

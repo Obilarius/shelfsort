@@ -73,6 +73,16 @@ def run_async(owner: QObject, fn: Callable, ok: Callable, err: Callable | None =
     QThreadPool.globalInstance().start(_Job(fn, _Relay(owner, ok, err)))
 
 
+def fit_to_screen(w: QWidget, width: int, height: int) -> None:
+    """Preferred size, but at most 90 % of the screen - with 150-200 % display scaling a fixed
+    1400x820 window would be larger than a full-HD screen."""
+    screen = w.screen()
+    if screen is not None:
+        area = screen.availableGeometry()
+        width, height = min(width, int(area.width() * 0.9)), min(height, int(area.height() * 0.9))
+    w.resize(width, height)
+
+
 def label(text: str = "", style: str = "") -> QLabel:
     lab = QLabel(text)
     lab.setWordWrap(True)
