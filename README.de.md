@@ -106,7 +106,7 @@ TMDB-Key und Plex-Token liegen nur in der Einstellungsdatei auf deinem Computer.
 
 ## Unterstützen
 
-ShelfSort ist kostenlos und bleibt es – keine Bezahlfunktionen, keine Werbung. Wenn es dir Zeit spart, kannst du mir einen Kaffee spendieren. <!-- TODO: Spendenlink -->
+ShelfSort ist kostenlos und bleibt es – keine Bezahlfunktionen, keine Werbung. Wenn es dir Zeit spart, kannst du mir [auf Ko-fi einen Kaffee spendieren](https://ko-fi.com/obilarius) ☕
 
 ## Lizenz
 

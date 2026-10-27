@@ -58,14 +58,14 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 
 - [ ] Optische Feinarbeit (eigene Liste).
 - [ ] Hell-/Dunkel-Modus prüfen, hohe DPI, Tastaturbedienung.
-- [ ] Über-Dialog: Version, Lizenz, TMDB-Hinweis, Link zu GitHub und Spenden-Link.
+- [x] Über-Dialog: Version, Lizenz, TMDB-Hinweis, Link zu GitHub und Spenden-Link.
 
 ## 7. Veröffentlichung
 
 - [x] README für Fremde: englisch (`README.md`) und deutsch (`README.de.md`) – was es macht, Installation, erste Schritte, FAQ, Datenschutz. Entwicklerteil in `CONTRIBUTING.md`.
 - [x] Screenshots für die README (`docs/screenshots/`, erzeugt mit `tools/screenshots.py` aus Beispieldaten).
 - [x] `CONTRIBUTING.md` und Issue-Vorlagen (Bug/Wunsch, `.github/ISSUE_TEMPLATE/`).
-- [ ] Spenden-Link (Buy Me a Coffee / Ko-fi / GitHub Sponsors) in README und App.
+- [x] Spenden-Link: Ko-fi (`ko-fi.com/obilarius`) in beiden READMEs, im Über-Dialog und als Sponsor-Knopf (`.github/FUNDING.yml`).
 - [ ] Erste Ankündigung, z. B. auf r/PleX – Schwerpunkt auf dem, was andere Tools nicht können: Plex-Abgleich nach der eingestellten Reihenfolge und der Specials-Check.
 
 ## Später / Ideen

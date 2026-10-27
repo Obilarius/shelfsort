@@ -179,6 +179,8 @@ ABOUT_HTML = N_("""
 prüft Folgennummern gegen die in Plex eingestellte Reihenfolge.</p>
 <p>Freie Software unter der MIT-Lizenz. Verwendete Bibliotheken und ihre Lizenzen:
 siehe <i>THIRD_PARTY_LICENSES.md</i>.</p>
+<p><a href="https://github.com/Obilarius/shelfsort">Projektseite auf GitHub</a> – Fehler melden, Wünsche, neue Versionen<br>
+Kostenlos, ohne Werbung. Gefällt dir ShelfSort? <a href="https://ko-fi.com/obilarius">Spendier mir einen Kaffee</a> ☕</p>
 <hr>
 <p><a href="https://www.themoviedb.org"><img src="{tmdb_logo}" width="110"></a><br>
 This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</p>

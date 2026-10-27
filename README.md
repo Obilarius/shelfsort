@@ -106,7 +106,7 @@ Your TMDB key and Plex token are stored only in the settings file on your comput
 
 ## Support
 
-ShelfSort is free and stays free – no paid features, no ads. If it saves you time, you can buy me a coffee. <!-- TODO: donation link -->
+ShelfSort is free and stays free – no paid features, no ads. If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/obilarius) ☕
 
 ## License
 
