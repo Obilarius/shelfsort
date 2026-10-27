@@ -19,7 +19,7 @@ def _fake(calls):
 def test_refresh_with_configured_mapping(monkeypatch):
     calls = []
     monkeypatch.setattr(Plex, "_get", _fake(calls))
-    movies = Path(r"X:\plex_media\movies")
+    movies = Path("X:/plex_media/movies")
     msgs = Plex("http://nexus:32400", "t").refresh({movies / "A Movie (2026) {tmdb-1}"},
                                                    [LibraryMap(movies, "1", "/data/movies")])
     assert ("/library/sections/1/refresh", {"path": "/data/movies/A Movie (2026) {tmdb-1}"}) in calls
@@ -29,7 +29,7 @@ def test_refresh_with_configured_mapping(monkeypatch):
 def test_refresh_falls_back_to_folder_name(monkeypatch):
     calls = []
     monkeypatch.setattr(Plex, "_get", _fake(calls))
-    tv = Path(r"X:\media\tvshows")
+    tv = Path("X:/media/tvshows")  # forward slashes: a real folder path on Windows and on Linux
     Plex("http://nexus:32400", "t").refresh({tv / "Show {tmdb-2}" / "Season 01"}, [LibraryMap(tv)])
     assert ("/library/sections/2/refresh", {"path": "/data/tvshows/Show {tmdb-2}"}) in calls
 

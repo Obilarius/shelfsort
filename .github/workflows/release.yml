@@ -1,10 +1,12 @@
 # Pushing a tag like v0.2.0 builds Windows and Linux and publishes a GitHub release.
 # The tag has to match __version__ in shelfsort/__init__.py; notes come from CHANGELOG.md.
+# Started by hand (Actions -> Release -> Run workflow) it only builds, as a test.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,8 +19,8 @@ jobs:
         os: [windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -27,11 +29,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
       - run: pip install -r requirements.txt pyinstaller==6.22.0
       - name: Tag matches version
+        if: github.ref_type == 'tag'
         shell: bash
         run: python tools/release_notes.py --check "${GITHUB_REF_NAME}"
       - run: python -m pytest -q
       - run: python tools/build.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.os }}
           path: |
@@ -41,10 +44,11 @@ jobs:
 
   release:
     needs: build
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: files
           merge-multiple: true
