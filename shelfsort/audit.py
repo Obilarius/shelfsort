@@ -12,9 +12,9 @@ from .i18n import tr
 from .importer import ProgressFn
 from .library import Library, list_dirs, localized
 from .matcher import find_movie, find_show, movie_by_id, show_by_id
-from .naming import (SEASON_DIR_RE, SHOW_NFO, YEAR_SUFFIX_RE, episode_code, episode_name, movie_folder, movie_name, show_folder,
-                     strip_ids, title_of, tmdb_id_of, valid_movie_dir, valid_show_dir)
-from .parse import (RELEASE_JUNK, current_episode_title, episode_numbers, has_video, parse_release,
+from .naming import (SEASON_DIR_RE, SHOW_NFO, YEAR_SUFFIX_RE, episode_code, episode_name, movie_file, movie_folder,
+                     movie_name, show_folder, strip_ids, title_of, tmdb_id_of, valid_movie_dir, valid_show_dir)
+from .parse import (RELEASE_JUNK, current_episode_title, edition_in, episode_numbers, has_video, parse_release,
                     walk_videos)
 from .plan import Op, Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import PlexCatalog, PlexEpisode, ProviderError, find_by_title, is_placeholder, season_offsets
@@ -134,7 +134,9 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
     item.replan = lambda ov: finalize(audit_movie_dir(d, tmdb, lib, opts, ov))
     main = [v for v in videos if v.parent == d] or videos
     parts = {v: parse_release(v).part for v in main}
-    if len(main) > 1 and not all(parts.values()):
+    editions = {v: edition_in(v) for v in main}
+    # several files are fine if each is its own part or edition ("pt1"/"pt2", Theatrical/Director's Cut)
+    if len(main) > 1 and len({(editions[v], parts[v]) for v in main}) < len(main):
         item.status, item.note = "review", tr("{count} Videodateien im Ordner – manuell prüfen", count=len(main))
         return [item]
 
@@ -170,7 +172,7 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
 
     final_name = None
     for v in main:
-        name = base + (f" - pt{parts[v]}" if parts[v] else "") + v.suffix.lower()
+        name = movie_file(base, editions[v], parts[v]) + v.suffix.lower()
         final_name = final_name or name
         before = len(item.ops)
         item.set_video_move(v, d / name)

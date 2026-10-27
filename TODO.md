@@ -45,7 +45,8 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] **Namensschema einstellbar** (Einstellungen → Namen): Vorlagen Plex/Jellyfin/Kodi oder einzeln – ID-Format (`{tmdb-}`, `[tmdbid-]`, keine), Jahr im Serienordner, `Season`/`Staffel`, Folgentitel ja/nein. Vorhandene Ordner werden in jedem Format erkannt, auch ohne ID.
 - [ ] *Optional:* `{tvdb-}`/`{imdb-}` als ID-Format (braucht eine zusätzliche TMDB-Abfrage pro Titel).
 - [x] **Mehrere Bibliotheken pro Typ** – im Assistenten anhaken, je ein Standard für Filme und Serien, Ziel per Rechtsklick; Prüfung, Plex-Abgleich, Specials und Scan über alle.
-- [ ] **Weitere Fälle**: Anime mit absoluter Nummerierung, Filme mit Edition (`{edition-…}`), 3D, Extras-Ordner, mehrteilige Filme testen.
+- [x] **Fassungen, 3D, Extras, mehrteilige Filme**: Fassungen als `{edition-…}` (Jellyfin/Kodi: ` - Fassung`) neben der normalen Version, 3D als Fassung, „The Final Cut“ nicht mehr als Folge erkannt; Extras-Ordner wie `Bonus` und Plex-Extras `…-trailer.mkv` werden übersprungen; `CD1`/`Part2` → `- pt1` getestet.
+- [ ] **Anime mit absoluter Nummerierung** (`One Piece - 1085`): absolute Nummer über die Plex-/TMDB-Folgenliste in Staffel/Folge umrechnen – erst bei Nachfrage.
 
 ## 5. Sicherheit & Stabilität
 

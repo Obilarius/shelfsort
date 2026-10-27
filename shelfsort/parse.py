@@ -10,11 +10,23 @@ from guessit import guessit
 
 VIDEO_EXT = {".mkv", ".mp4", ".avi", ".m4v", ".mov", ".wmv", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm"}
 SUB_EXT = {".srt", ".ass", ".ssa", ".sub", ".idx", ".vtt", ".sup"}
-# Plex extras folders (and sample folders) - never treated as main content.
+# Plex extras folders (and sample folders) - never treated as main content. Plus names releases
+# use for the same thing. Not "specials": in a show that is season 0.
 EXTRAS_DIRS = {
     "behind the scenes", "deleted scenes", "featurettes", "interviews", "scenes",
     "shorts", "trailers", "other", "extras", "sample", "samples",
+    "bonus", "bonus features", "special features", "making of", "featurette", "trailer",
 }
+# Plex extras next to the movie: "Arrival (2016)-trailer.mkv"
+_EXTRA_SUFFIX_RE = re.compile(r"-(behindthescenes|deleted|featurette|interview|scene|short|trailer|other)$",
+                              re.IGNORECASE)
+# Editions worth keeping apart (guessit knows most of them; "Final Cut" and friends it misses)
+_EDITIONS = {
+    "director's cut": "Director's Cut", "extended": "Extended", "unrated": "Unrated", "uncut": "Uncut",
+    "theatrical": "Theatrical", "remastered": "Remastered", "imax": "IMAX", "special": "Special Edition",
+    "final cut": "Final Cut", "ultimate cut": "Ultimate Cut", "alternative cut": "Alternative Cut",
+}
+_EDITION_RE = re.compile(r"(?<![a-z])(final|ultimate|alternative)[ ._-]cut(?![a-z])", re.IGNORECASE)
 
 _SAMPLE_RE = re.compile(r"(?:^|[\W_])sample(?:[\W_]|$)", re.IGNORECASE)
 # Odd numbers like "S07E05,5" are rejected instead of misread; "S01E02.1080p" is a normal episode.
@@ -35,6 +47,7 @@ class Parsed:
     season: int | None = None
     episodes: list[int] = field(default_factory=list)
     part: int | None = None
+    edition: str | None = None  # "Director's Cut", "3D", "Extended 3D" (movies only)
     # other readings to try if `title` finds nothing ("abc-show" -> "show", folder "Show.S03E02…")
     alt_titles: list[str] = field(default_factory=list)
 
@@ -55,6 +68,11 @@ def is_sample(p: Path) -> bool:
     return bool(_SAMPLE_RE.search(p.stem)) or p.parent.name.lower() in ("sample", "samples")
 
 
+def is_extra(p: Path) -> bool:
+    """Plex local extra like 'Arrival (2016)-trailer.mkv'."""
+    return bool(_EXTRA_SUFFIX_RE.search(p.stem))
+
+
 def walk_videos(root: Path, min_bytes: int = 0, skip_extras: bool = True) -> list[Path]:
     out: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root, onerror=_raise):
@@ -64,7 +82,7 @@ def walk_videos(root: Path, min_bytes: int = 0, skip_extras: bool = True) -> lis
         )
         for f in sorted(filenames):
             p = Path(dirpath) / f
-            if not is_video(p) or is_sample(p):
+            if not is_video(p) or is_sample(p) or (skip_extras and is_extra(p)):
                 continue
             if min_bytes and p.stat().st_size < min_bytes:
                 continue
@@ -116,6 +134,28 @@ def _first(v):
     return v[0] if isinstance(v, list) and v else v
 
 
+def _edition(info: dict, name: str) -> str | None:
+    """Edition of a movie release: guessit's edition, 'Final Cut' & co. and 3D."""
+    found = []
+    for e in info.get("edition") or []:
+        if (label := _EDITIONS.get(str(e).lower())) and label not in found:
+            found.append(label)
+    if not isinstance(info.get("edition"), list) and (label := _EDITIONS.get(str(info.get("edition", "")).lower())):
+        found = [label]
+    if (m := _EDITION_RE.search(name)) and (label := _EDITIONS.get(f"{m.group(1).lower()} cut")) not in found:
+        found.append(label)
+    other = info.get("other") or []
+    if "3D" in (other if isinstance(other, list) else [other]):
+        found.append("3D")
+    return " ".join(found) or None
+
+
+def edition_in(path: Path) -> str | None:
+    """Edition of an existing movie file: Plex tag '{edition-…}' or what the release name says."""
+    m = re.search(r"\{edition-([^}]+)\}", path.name, re.IGNORECASE)
+    return m.group(1).strip() if m else parse_release(path).edition
+
+
 def parse_release(path: Path) -> Parsed:
     info = _guess(path.name)
     parent = _guess(path.parent.name + path.suffix)
@@ -146,8 +186,10 @@ def parse_release(path: Path) -> Parsed:
         nums = episode_numbers(path.name)
         if season is None and nums:
             season, episodes = nums
-        return Parsed("episode", title, year, season, [int(e) for e in episodes], part, alts)
-    return Parsed("movie", title, year, part=part, alt_titles=alts)
+        # "Blade.Runner.1982.The.Final.Cut": no season, no episode, but a year - that is a movie
+        if season is not None or episodes or not year:
+            return Parsed("episode", title, year, season, [int(e) for e in episodes], part, alt_titles=alts)
+    return Parsed("movie", title, year, part=part, edition=_edition(info, path.name), alt_titles=alts)
 
 
 def companions(video: Path) -> list[Path]:

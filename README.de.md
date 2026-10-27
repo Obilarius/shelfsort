@@ -23,6 +23,7 @@ ShelfSort fragt den Plex-Server, welche Reihenfolge jede Serie nutzt, und benenn
 
 - **Import aus Download-Ordnern** – inklusive Unterordnern; wilde Release-Namen (`Some.Movie.2016.German.DL.1080p.BluRay.x264.mkv`) werden zerlegt. Untertitel wandern mit.
 - **Du entscheidest** – jede geplante Umbenennung steht vorher in der Liste. Grün = sicherer Treffer (vorausgewählt), Gelb = bitte prüfen, Rot = Konflikt. Falscher Treffer? Doppelklick und selbst auf TMDB suchen, mit Covern und Beschreibung.
+- **Fassungen und Extras** – Director's Cut, Extended, Final Cut, 3D und andere bekommen eine eigene Datei neben der normalen Fassung (`Aliens (1986) {edition-Director's Cut}.mkv`; Plex zeigt Fassungen mit Plex Pass an). Mehrteilige Filme werden zu `- pt1`/`- pt2`. Trailer, Featurettes und Bonus-Ordner bleiben unangetastet.
 - **Sichere Übertragung** – über Laufwerke hinweg wird nach `*.partial` kopiert, die Größe geprüft und erst dann das Original gelöscht. Fortschritt, Geschwindigkeit und Restzeit werden angezeigt; Abbrechen lässt das Original unangetastet.
 - **Bibliothek prüfen** – falsche Ordner- und Dateinamen, fehlendes Jahr oder TMDB-ID, Folgen im falschen Staffelordner, fehlende Folgentitel, doppelte Einträge, leere Ordner.
 - **Mehrere Bibliotheken** – z. B. „Filme“, „Kinder“, „Serien“; pro Typ eine Standard-Bibliothek für Neues, jede mit eigener Titelsprache (praktisch für eine OV-Bibliothek).

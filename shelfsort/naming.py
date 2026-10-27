@@ -94,6 +94,26 @@ def movie_name(title: str, year: int | None) -> str:
     return f"{t} ({year})" if year else t
 
 
+EDITION_TAG_RE = re.compile(r"\s*\{edition-([^}]+)\}", re.IGNORECASE)
+
+
+def edition_of(name: str) -> str | None:
+    """Edition written in Plex style in an existing name ('… {edition-Director's Cut}')."""
+    m = EDITION_TAG_RE.search(name)
+    return m.group(1).strip() if m else None
+
+
+def movie_file(base: str, edition: str | None = None, part: int | None = None, s: Scheme | None = None) -> str:
+    """File name without extension from 'Aliens (1986)': 'Aliens (1986) {edition-Director's Cut} - pt1'.
+    Plex wants the {edition-…} tag; Jellyfin and Kodi read ' - Director's Cut' as a version label."""
+    name = base
+    if edition:
+        name += f" {{edition-{sanitize(edition)}}}" if (s or scheme).ids == "plex" else f" - {sanitize(edition)}"
+    if part:
+        name += f" - pt{part}"
+    return name
+
+
 def movie_folder(title: str, year: int | None, tmdb_id: int, s: Scheme | None = None) -> str:
     return movie_name(title, year) + _id_tag(tmdb_id, s or scheme)
 

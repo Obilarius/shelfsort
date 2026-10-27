@@ -6,8 +6,8 @@ from typing import Callable
 
 from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
-from .naming import SHOW_NFO, episode_name, movie_folder, movie_name, show_folder
-from .parse import is_video, parse_release, walk_videos
+from .naming import SHOW_NFO, episode_name, movie_file, movie_folder, movie_name, show_folder
+from .parse import edition_in, is_extra, is_video, parse_release, walk_videos
 from .i18n import tr
 from .plan import Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import is_placeholder
@@ -112,10 +112,12 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
     match = _in_language(match, movie_by_id, tmdb, lib.language_of(root))
     item.match = match
     folder = existing or root / movie_folder(match.title, match.year, match.tmdb_id)
-    name = movie_name(match.title, match.year) + (f" - pt{p.part}" if p.part else "")
+    name = movie_file(movie_name(match.title, match.year), p.edition, p.part)
     item.set_video_move(video, folder / (name + video.suffix.lower()))
     item.add_nfo(folder / (movie_name(match.title, match.year) + ".nfo"), "movie", match.tmdb_id)
 
+    if p.edition:
+        item.add_note(tr("Fassung: {edition}", edition=p.edition))
     if not (match.confident or ov):
         item.status = "review"
         item.add_note(tr("Treffer unsicher – bitte prüfen"))
@@ -123,10 +125,13 @@ def _plan_movie(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override | 
         item.status = "review"
         item.add_note(tr("Film liegt schon in Bibliothek „{library}“", library=lib.title(lib.root_of(elsewhere))))
     elif existing:
-        others = [f.name for f in existing.iterdir() if f.is_file() and is_video(f)]
-        if others:
+        videos = [f for f in existing.iterdir() if f.is_file() and is_video(f) and not is_extra(f)]
+        same = [f.name for f in videos if edition_in(f) == p.edition]  # another edition is welcome
+        if same:
             item.status = "review"
-            item.add_note(tr("Film schon vorhanden: {files}", files=', '.join(others)))
+            item.add_note(tr("Film schon vorhanden: {files}", files=', '.join(same)))
+        elif videos:
+            item.add_note(tr("weitere Fassung neben: {files}", files=', '.join(f.name for f in videos)))
     else:
         similar = lib.movie_by_title.get(norm(match.title))
         if similar:

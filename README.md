@@ -23,6 +23,7 @@ ShelfSort asks your Plex server which ordering each show uses and names the file
 
 - **Import from download folders** – subfolders are scanned too; messy release names (`Some.Movie.2016.German.DL.1080p.BluRay.x264.mkv`) are taken apart. Subtitles move along with their video.
 - **You decide** – every planned rename is listed first. Green = sure match (preselected), yellow = please review, red = conflict. Wrong match? Double-click and search TMDB yourself, with covers and descriptions.
+- **Editions and extras** – Director's Cut, Extended, Final Cut, 3D and others get their own file next to the regular version (`Aliens (1986) {edition-Director's Cut}.mkv`; Plex shows editions with Plex Pass). Multi-part movies become `- pt1`/`- pt2`. Trailers, featurettes and bonus folders are left alone.
 - **Safe transfer** – across drives files are copied to `*.partial`, the size is checked, and only then is the original removed. Progress, speed and time left are shown; cancelling leaves the original untouched.
 - **Check library** – wrong folder or file names, missing year or TMDB ID, episodes in the wrong season folder, missing episode titles, duplicates, empty folders.
 - **Several libraries** – e.g. “Movies”, “Kids”, “TV Shows”; one default per type for new imports, each with its own title language (useful for an original-language library).
