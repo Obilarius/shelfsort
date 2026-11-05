@@ -61,6 +61,12 @@ class PlexShow:
     own_ordering: str | None = None  # None: follows the library default
     options: list[tuple[str, str]] = field(default_factory=list)  # (value, label) Plex offers for this show
     episodes: list[PlexEpisode] = field(default_factory=list)
+    year: int | None = None
+
+    @property
+    def name(self) -> str:
+        """Title with year, so two shows of the same name (Doctor Who 2005 and 2023) can be told apart."""
+        return f"{self.title} ({self.year})" if self.year else self.title
 
     def label(self, value: str) -> str:
         return dict(self.options).get(value) or (tr(ORDERING_LABELS[value]) if value in ORDERING_LABELS else value)
@@ -80,6 +86,7 @@ class SpecialsReport:
     show: PlexShow
     specials: list[str]  # titles in season 0 with the current ordering
     options: list[OrderingOption]
+    no_file: int = 0  # specials without a file in the show's folder
 
     @property
     def best(self) -> OrderingOption | None:
@@ -236,7 +243,7 @@ class PlexCatalog:
                             local = lib.local_root.joinpath(*path[len(base) + 1:].split("/"))
                             out[str(local).lower()] = PlexShow(
                                 s.get("title", ""), s["ratingKey"], s["guid"], own or default_order, local,
-                                own, _parse_enum(pref.get("enumValues", "")))
+                                own, _parse_enum(pref.get("enumValues", "")), year=s.get("year"))
         return out
 
     def episode_list(self, show: PlexShow, ordering: str, languages: list[str] | None = None) -> list[PlexEpisode]:
@@ -283,6 +290,12 @@ class PlexCatalog:
         specials = [e for e in current if e.season == 0]
         if not specials:
             return None
+        have = self.special_files(show)
+
+        def name(sp: PlexEpisode) -> str:
+            text = f"{episode_code(0, [sp.episode])} {sp.title}"
+            return text if have is None or sp.episode in have else f"{text}  {tr('(keine Datei)')}"
+
         options = []
         for value, label in show.options:
             if value == show.ordering or value == "tvdbAbsolute":  # absolute = one big season, no help
@@ -293,15 +306,28 @@ class PlexCatalog:
             opt = OrderingOption(value, label)
             for sp in specials:
                 e = other.get(sp.guid)
-                name = f"{episode_code(0, [sp.episode])} {sp.title}"
                 if e is None:
-                    opt.missing.append(name)
+                    opt.missing.append(name(sp))
                 elif e.season == 0:
-                    opt.still_special.append(name)
+                    opt.still_special.append(name(sp))
                 else:
-                    opt.in_flow.append(f"{name}  →  {episode_code(e.season, [e.episode])}")
+                    opt.in_flow.append(f"{name(sp)}  →  {episode_code(e.season, [e.episode])}")
             options.append(opt)
-        return SpecialsReport(show, [f"{episode_code(0, [e.episode])} {e.title}" for e in specials], options)
+        no_file = 0 if have is None else sum(sp.episode not in have for sp in specials)
+        return SpecialsReport(show, [name(sp) for sp in specials], options, no_file)
+
+    def special_files(self, show: PlexShow) -> set[int] | None:
+        """Season 0 episode numbers the server has a file for, in the show's current ordering (None: unknown)."""
+        try:
+            seasons = self.plex._get(f"/library/metadata/{show.rating_key}/children").get("MediaContainer", {})
+            season0 = next((s for s in seasons.get("Metadata", []) if s.get("index") == 0), None)
+            if not season0:
+                return set()
+            eps = self.plex._get(f"/library/metadata/{season0['ratingKey']}/children").get("MediaContainer", {})
+            return {int(e["index"]) for e in eps.get("Metadata", []) if e.get("index") is not None}
+        except Exception as e:
+            log.warning("Specials of %s on the server not readable: %s", show.name, e)
+            return None
 
     def set_ordering(self, show: PlexShow, value: str) -> None:
         """Change the show's episode ordering in Plex and refresh its metadata."""
@@ -321,7 +347,7 @@ def specials_overview(catalog: PlexCatalog, progress=None) -> tuple[list[Special
             show = futures[f]
             if progress:
                 try:
-                    progress(f"Specials: {show.title}", i, len(futures))
+                    progress(f"Specials: {show.name}", i, len(futures))
                 except BaseException:
                     pool.shutdown(wait=False, cancel_futures=True)
                     raise
@@ -332,8 +358,8 @@ def specials_overview(catalog: PlexCatalog, progress=None) -> tuple[list[Special
                 if not any(isinstance(x, ProviderError) for x in errors):
                     errors.append(e)  # one message if the service is down, not one per show
             except Exception as e:
-                errors.append(f"{show.title}: {e}")
-    return sorted(reports, key=lambda r: r.show.title.lower()), [str(e) for e in errors]
+                errors.append(f"{show.name}: {e}")
+    return sorted(reports, key=lambda r: r.show.name.lower()), [str(e) for e in errors]
 
 
 class PlexEpisodeSource:

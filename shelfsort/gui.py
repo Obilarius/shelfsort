@@ -663,7 +663,7 @@ class MainWindow(QMainWindow):
             reports, errors = result
             file_log.info("Specials check finished in %.1f s", time.monotonic() - self._started)
             for r in reports:
-                file_log.info("  %s: %d specials with %s; best: %s", r.show.title, len(r.specials), r.show.ordering,
+                file_log.info("  %s: %d specials with %s; best: %s", r.show.name, len(r.specials), r.show.ordering,
                               f"{r.best.label} ({len(r.best.in_flow)} into the seasons)" if r.best else "-")
             for e in errors:
                 self.log(tr("Specials-Check: {error}", error=e))
@@ -680,15 +680,17 @@ class MainWindow(QMainWindow):
             return
         lines, warn = [], False
         for rep, opt in chosen:
-            line = tr("• {show}: {old} → {new} ({n} Specials in den Ablauf)", show=rep.show.title,
+            line = tr("• {show}: {old} → {new} ({n} Specials in den Ablauf)", show=rep.show.name,
                       old=rep.show.label(rep.show.ordering), new=opt.label, n=len(opt.in_flow))
+            line += "\n    " + tr("Ordner: {name}", name=rep.show.local_dir)
             if opt.missing:
                 warn = True
                 line += "\n    " + tr("ACHTUNG: {n} Specials gibt es in dieser Reihenfolge nicht", n=len(opt.missing))
             lines.append(line)
-        text = tr("Die Episoden-Reihenfolge wird in Plex umgestellt und die Metadaten der Serie neu geladen:\n\n"
-                  "{lines}\n\nDanach schlägt der Plex-Abgleich die neuen Dateinummern vor "
-                  "(nichts wird automatisch umbenannt). Zurückstellen geht jederzeit in Plex oder hier.\n\nFortfahren?",
+        text = tr("Die Episoden-Reihenfolge wird in Plex umgestellt und die Metadaten der Serie neu geladen. "
+                  "Dateien werden dabei weder kopiert noch verschoben:\n\n{lines}\n\nDanach schlägt der "
+                  "Plex-Abgleich neue Nummern nur für die Dateien in diesen Ordnern vor (nichts wird automatisch "
+                  "umbenannt). Zurückstellen geht jederzeit in Plex oder hier.\n\nFortfahren?",
                   lines="\n".join(lines))
         box = QMessageBox(QMessageBox.Warning if warn else QMessageBox.Question, tr("Reihenfolge umstellen"), text,
                           QMessageBox.Yes | QMessageBox.No, self)
@@ -707,7 +709,7 @@ class MainWindow(QMainWindow):
         def work(w: Worker):
             for rep, opt in chosen:
                 catalog.set_ordering(rep.show, opt.value)
-                w.log.emit(f"Plex: {rep.show.title} → {opt.label}")
+                w.log.emit(f"Plex: {rep.show.name} → {opt.label}")
             fresh = catalog_for(cfg)
             return build_audit_plan(tmdb, lib, AuditOptions(movies=False, empty=False, plex_sync=True),
                                     w.progress.emit, fresh, only_shows={rep.show.local_dir for rep, _ in chosen})

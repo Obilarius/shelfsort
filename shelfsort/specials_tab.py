@@ -66,8 +66,10 @@ class SpecialsTab(QWidget):
         self.apply_btn = primary(QPushButton(tr("Reihenfolge in Plex umstellen")))
         self.apply_btn.setMinimumWidth(220)
         self.apply_btn.clicked.connect(self._apply)
-        hint = QLabel(tr("Danach prüft das Tool die umgestellten Serien mit dem Plex-Abgleich und schlägt die "
-                         "neuen Dateinummern vor."))
+        hint = QLabel(tr("Stellt nur die Reihenfolge in Plex um, Dateien werden dabei weder kopiert noch verschoben. "
+                         "Danach schlägt der Plex-Abgleich neue Nummern für die Dateien im Ordner der Serie vor – "
+                         "umbenannt wird erst, wenn du sie ausführst."))
+        hint.setWordWrap(True)
         hint.setStyleSheet("color: gray")
         bottom = QHBoxLayout()
         bottom.addWidget(hint, 1)
@@ -101,7 +103,9 @@ class SpecialsTab(QWidget):
             check.setCheckState(Qt.Unchecked)
             check.setData(Qt.UserRole, rep)
             self.table.setItem(r, 0, check)
-            self.table.setItem(r, 1, QTableWidgetItem(rep.show.title))
+            name = QTableWidgetItem(rep.show.name)
+            name.setToolTip(str(rep.show.local_dir))
+            self.table.setItem(r, 1, name)
             current = rep.show.label(rep.show.ordering) + ("" if rep.show.own_ordering else " " + tr("(Standard)"))
             self.table.setItem(r, 2, QTableWidgetItem(current))
             self.table.setItem(r, 3, QTableWidgetItem(str(len(rep.specials))))
@@ -146,7 +150,8 @@ class SpecialsTab(QWidget):
             return
         rep: SpecialsReport = self.table.item(row, 0).data(Qt.UserRole)
         opt = self._option(row)
-        lines = [tr("{title} – {count} Specials mit „{ordering}“:", title=rep.show.title, count=len(rep.specials),
+        lines = [tr("Ordner: {name}", name=rep.show.local_dir), "",
+                 tr("{title} – {count} Specials mit „{ordering}“:", title=rep.show.name, count=len(rep.specials),
                     ordering=rep.show.label(rep.show.ordering))]
         lines += [f"   {s}" for s in rep.specials]
         if opt:
@@ -162,6 +167,9 @@ class SpecialsTab(QWidget):
                 lines.append("  " + tr("ACHTUNG – gibt es in dieser Reihenfolge nicht ({count}). Hast du Dateien dafür, "
                                     "kann Plex sie danach nicht mehr zuordnen:", count=len(opt.missing)))
                 lines += [f"     {s}" for s in opt.missing]
+            if rep.no_file:
+                lines += ["", tr("„keine Datei“: Im Ordner dieser Serie liegt keine Datei dafür. Das Tool holt nichts "
+                                 "aus anderen Serien oder Ordnern, es nummeriert nur die vorhandenen Dateien neu.")]
         self.details.setPlainText("\n".join(lines))
 
     def _apply(self) -> None:
