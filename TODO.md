@@ -73,7 +73,7 @@ Ziel: kostenlos und Open Source auf GitHub, mit Spenden-Link (Buy Me a Coffee o.
 - [x] Screenshots für die README (`docs/screenshots/`, erzeugt mit `tools/screenshots.py` aus Beispieldaten).
 - [x] `CONTRIBUTING.md` und Issue-Vorlagen (Bug/Wunsch, `.github/ISSUE_TEMPLATE/`).
 - [x] Spenden-Link: Ko-fi (`ko-fi.com/obilarius`) in beiden READMEs, im Über-Dialog und als Sponsor-Knopf (`.github/FUNDING.yml`).
-- [ ] Erste Ankündigung, z. B. auf r/PleX – Schwerpunkt auf dem, was andere Tools nicht können: Plex-Abgleich nach der eingestellten Reihenfolge und der Specials-Check.
+- [x] Erste Ankündigung auf r/PleX: Beitrag im „Monthly Projects Megathread“ November 2026. Eigene Posts sind dort nicht erlaubt, im Thread nur ein Beitrag pro Monat und mit KI-Angabe.
 
 ## Später / Ideen
 
