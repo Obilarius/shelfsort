@@ -18,6 +18,7 @@ ShelfSort asks your Plex server which ordering each show uses and names the file
 
 - **Plex sync** – compares every episode in your library with the episode list Plex uses for that show and suggests corrected numbers, e.g. a Christmas special moved from `S07E00` to `S06E14`, or a season that is off by one.
 - **Specials check** – Plex skips season 0 in “Continue watching”. ShelfSort shows, per show, which of the orderings available in Plex puts the specials into the regular seasons, and switches the show to it on request.
+- **Files from another ordering** – a Disney+ release numbers Bluey season 3 differently than the ordering Plex uses, so the episodes show up under the wrong titles. On import, an episode title or a streaming tag (`DSNP`, `iP`) in the name translates the number, and a number that means another episode elsewhere is flagged. *Check library* compares the file lengths Plex measured with every ordering and points out seasons numbered by another one.
 
 ## Features
 

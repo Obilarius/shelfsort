@@ -18,6 +18,7 @@ ShelfSort fragt den Plex-Server, welche Reihenfolge jede Serie nutzt, und benenn
 
 - **Plex-Abgleich** – vergleicht jede Folge der Bibliothek mit der Folgenliste, die Plex für die Serie verwendet, und schlägt korrigierte Nummern vor, z. B. ein Weihnachtsspecial von `S07E00` nach `S06E14` oder eine um eins verschobene Staffel.
 - **Specials-Check** – Plex überspringt Staffel 0 bei „Weiter schauen“. ShelfSort zeigt pro Serie, welche der in Plex verfügbaren Reihenfolgen die Specials in die normalen Staffeln einsortiert, und stellt die Serie auf Wunsch um.
+- **Dateien aus einer anderen Reihenfolge** – ein Disney+-Release nummeriert Bluey Staffel 3 anders als die Reihenfolge, die Plex nutzt; dann laufen die Folgen unter falschen Titeln. Beim Import übersetzt ein Folgentitel oder ein Plattform-Kürzel (`DSNP`, `iP`) im Namen die Nummer, und eine Nummer, die anderswo eine andere Folge meint, wird markiert. *Bibliothek prüfen* vergleicht die Laufzeiten, die Plex gemessen hat, mit jeder Reihenfolge und meldet Staffeln, die nach einer anderen nummeriert sind.
 
 ## Funktionen
 

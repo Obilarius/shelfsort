@@ -2,6 +2,13 @@
 
 Each release gets a section `## <version>`; the release workflow publishes it as the release notes.
 
+## 0.4.0
+
+- **Files numbered by another episode ordering** – e.g. a Disney+ release of Bluey season 3: Disney+ numbers it differently than TheTVDB, which Plex uses, so the episodes played under the wrong titles.
+  - *Import*: an episode title in the release name decides the number; a streaming tag (`DSNP` for Disney+, `iP` for BBC iPlayer) translates it through the ordering Plex has for that service. A number that means another episode in some other ordering is marked for review, with the alternatives in the note.
+  - *Check library* (with Plex sync): the file lengths Plex measured are compared with every ordering the show offers. A season that clearly fits another ordering gets a hint row and the new numbers (never preselected). If several orderings fit but place the files differently, double-click the hint row and choose – after watching one of the episodes where they differ. Only works where episode lengths differ; adds a few seconds per show.
+- **Specials check** – shows of the same name are told apart by their year (“Doctor Who (2005)”, “Doctor Who (2023)”), with the folder in the details and the confirmation. Specials without a file in the show's folder are marked “(no file)”. The hint and the confirmation say plainly that switching the ordering copies and moves nothing.
+
 ## 0.3.1
 
 - **Calmer look** – status columns are rounded badges instead of coloured cells, the main action of each screen is an accent-coloured button, and a selected row is one tinted row (Windows 11 drew a small bar in front of every cell). Long paths are shortened in the middle so the file name stays visible, empty lists say what to do, the log area starts small and the transfer panel takes less room.
