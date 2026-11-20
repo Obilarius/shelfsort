@@ -27,6 +27,12 @@ _EDITIONS = {
     "final cut": "Final Cut", "ultimate cut": "Ultimate Cut", "alternative cut": "Alternative Cut",
 }
 _EDITION_RE = re.compile(r"(?<![a-z])(final|ultimate|alternative)[ ._-]cut(?![a-z])", re.IGNORECASE)
+# Streaming services in release names - Plex has episode orderings of their own for some of them.
+# guessit only knows "DSNP" right next to "WEB-DL".
+_SERVICES = [
+    (re.compile(r"(?<![a-z0-9])(dsnp|dsny|disney\+)(?![a-z0-9])", re.IGNORECASE), "Disney+"),
+    (re.compile(r"(?<![A-Za-z0-9])iP(?![A-Za-z0-9])"), "BBC iPlayer"),
+]
 
 _SAMPLE_RE = re.compile(r"(?:^|[\W_])sample(?:[\W_]|$)", re.IGNORECASE)
 # Odd numbers like "S07E05,5" are rejected instead of misread; "S01E02.1080p" is a normal episode.
@@ -50,6 +56,8 @@ class Parsed:
     edition: str | None = None  # "Director's Cut", "3D", "Extended 3D" (movies only)
     # other readings to try if `title` finds nothing ("abc-show" -> "show", folder "Show.S03E02…")
     alt_titles: list[str] = field(default_factory=list)
+    episode_title: str | None = None  # "Bluey.S03E06.Born.Yesterday…"
+    service: str | None = None  # streaming service the release comes from, e.g. "Disney+"
 
     def titles(self) -> list[str]:
         return [t for t in dict.fromkeys([self.title, *self.alt_titles]) if t]
@@ -150,6 +158,14 @@ def _edition(info: dict, name: str) -> str | None:
     return " ".join(found) or None
 
 
+def _service(names: list[str], info: dict) -> str | None:
+    for rx, service in _SERVICES:
+        if any(rx.search(n) for n in names):
+            return service
+    s = _first(info.get("streaming_service"))
+    return str(s) if s else None
+
+
 def edition_in(path: Path) -> str | None:
     """Edition of an existing movie file: Plex tag '{edition-…}' or what the release name says."""
     m = re.search(r"\{edition-([^}]+)\}", path.name, re.IGNORECASE)
@@ -188,7 +204,10 @@ def parse_release(path: Path) -> Parsed:
             season, episodes = nums
         # "Blade.Runner.1982.The.Final.Cut": no season, no episode, but a year - that is a movie
         if season is not None or episodes or not year:
-            return Parsed("episode", title, year, season, [int(e) for e in episodes], part, alt_titles=alts)
+            ep_title = info.get("episode_title")
+            return Parsed("episode", title, year, season, [int(e) for e in episodes], part, alt_titles=alts,
+                          episode_title=ep_title if isinstance(ep_title, str) else None,
+                          service=_service([path.name, path.parent.name], info))
     return Parsed("movie", title, year, part=part, edition=_edition(info, path.name), alt_titles=alts)
 
 

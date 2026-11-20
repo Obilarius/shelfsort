@@ -1,6 +1,7 @@
 """Checking the existing Plex library for names that should be fixed."""
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -20,6 +21,7 @@ from .parse import (RELEASE_JUNK, current_episode_title, edition_in, episode_num
 from .plan import Op, Override, PlanItem, ScanCancelled, finalize
 from .plex_sync import PlexCatalog, PlexEpisode, ProviderError, find_by_title, is_placeholder, season_offsets
 
+log = logging.getLogger("shelfsort")
 _LOOSE_CODE = re.compile(r"S\d{1,3}E[\d,.]+(?:-?E\d+)*\s*-\s*", re.IGNORECASE)
 
 
@@ -75,7 +77,12 @@ def build_audit_plan(tmdb, lib: Library, opts: AuditOptions,
                                                    error=e)))
                     plex_shows = {}
                 else:
-                    items += audit_show_dir(d, t, lib, opts, plex_eps=eps)
+                    hints = {}
+                    try:
+                        hints = catalog.ordering_hints(plex_shows[str(d).lower()], eps)
+                    except Exception as e:  # only an extra check - never let it stop the library check
+                        log.warning("Length check for %s failed: %s", d.name, e)
+                    items += audit_show_dir(d, t, lib, opts, plex_eps=eps, hints=hints)
                     continue
             items += fn(d, t, lib, opts)
         except Exception as e:
@@ -229,7 +236,10 @@ def audit_movie_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
 # --- shows --------------------------------------------------------------------------------
 
 def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
-                   override: Override | None = None, plex_eps: list[PlexEpisode] | None = None) -> list[PlanItem]:
+                   override: Override | None = None, plex_eps: list[PlexEpisode] | None = None,
+                   hints: dict | None = None, chosen: dict[int, str] | None = None) -> list[PlanItem]:
+    """hints: seasons whose file lengths fit other orderings (PlexCatalog.ordering_hints);
+    chosen: the ordering picked by hand for such a season."""
     group = str(d)
     videos = walk_videos(d)
     if not videos:
@@ -244,7 +254,10 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         return items
 
     def replan(ov: Override) -> list[PlanItem]:
-        return finalize(audit_show_dir(d, tmdb, lib, opts, ov, plex_eps))
+        if ov.kind == "ordering":
+            picked = {**(chosen or {}), ov.season: ov.ordering}
+            return finalize(audit_show_dir(d, tmdb, lib, opts, override, plex_eps, hints, picked))
+        return finalize(audit_show_dir(d, tmdb, lib, opts, ov, plex_eps, hints, chosen))
 
     show_id = tmdb_id_of(d.name)
     display = strip_ids(d.name)
@@ -290,6 +303,7 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         known = [(n[0], n[1][0], t) for v in videos
                  if (n := episode_numbers(v.name)) and (t := loose_episode_title(v.stem))]
         offsets = season_offsets(known, plex_eps)
+    remap = _ordering_remap(d, videos, season_dirs, plex_eps or [], hints or {}, chosen or {}, group, replan, items)
 
     for v in videos:
         nums = episode_numbers(v.name)
@@ -298,8 +312,17 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
         if title and is_placeholder(title):
             title = None  # "Episode 3" is not a title
 
+        key = (nums[0], nums[1][0]) if nums and len(nums[1]) == 1 else None
+        real, label = remap.get(key, (None, ""))
+        if real is not None and (real.season, real.episode) != key:
+            # numbered by another ordering: the title in the name came with the wrong number too
+            it.status = "review"
+            it.add_note(tr("Laufzeit passt zu „{ordering}“: das ist {new} „{title}“", ordering=label,
+                           new=episode_code(real.season, [real.episode]), title=real.title))
+            nums = (real.season, [real.episode])
+            title = None if is_placeholder(real.title) else real.title
         # multi-episode files (S01E01-E02) are left to the structural check
-        if plex_eps and not (nums and len(nums[1]) > 1):
+        elif plex_eps and not (nums and len(nums[1]) > 1):
             at = plex_by_num.get((nums[0], nums[1][0])) if nums else None
             if title and not (at and at.score(title) >= 0.999):
                 near = (nums[0], nums[1][0] + offsets.get(nums[0], 0)) if nums else None
@@ -353,6 +376,42 @@ def audit_show_dir(d: Path, tmdb, lib: Library, opts: AuditOptions,
             it.add_note(tr("{code} ist schon belegt durch „{name}“ (wird nicht verschoben)",
                             code=episode_code(*n), name=blocker.name))
     return items
+
+
+def _ordering_remap(d: Path, videos: list[Path], season_dirs: dict[int, Path], plex_eps: list[PlexEpisode],
+                    hints: dict, chosen: dict[int, str], group: str, replan, items: list[PlanItem]
+                    ) -> dict[tuple[int, int], tuple[PlexEpisode, str]]:
+    """Seasons whose file lengths fit another ordering: a hint row each, and for the files the episode they
+    really are - {file number: (episode in the show's ordering, ordering label)}."""
+    by_guid = {e.guid: e for e in plex_eps if e.guid}
+    remap: dict[tuple[int, int], tuple[PlexEpisode, str]] = {}
+    for season, candidates in sorted(hints.items()):
+        files = {(n[0], n[1][0]) for v in videos
+                 if (n := episode_numbers(v.name)) and n[0] == season and len(n[1]) == 1}
+        maps = []
+        for value, label, eps in candidates:
+            by_num = {(e.season, e.episode): e for e in eps}
+            maps.append((value, label, {k: by_guid.get(by_num[k].guid) for k in files if k in by_num}))
+        pick = next((m for m in maps if m[0] == chosen.get(season)), None)
+        if pick is None and all(m[2] == maps[0][2] for m in maps):
+            pick = maps[0]  # the candidates agree on these files
+        hint = PlanItem("season", season_dirs.get(season, d), group, status="review", dialog_kind="ordering",
+                        replan=lambda ov, s=season: replan(Override("ordering", 0, season=s, ordering=ov.ordering)),
+                        choices=[(v, label) for v, label, _ in maps])
+        hint.note = tr("Staffel {season}: Die Laufzeiten der Dateien passen nicht zur Reihenfolge in Plex, sondern zu "
+                       "{orderings} – die Dateien sind vermutlich danach nummeriert.", season=season,
+                       orderings=" / ".join(label for _, label, _ in maps))
+        if pick:
+            hint.add_note(tr("Neue Nummern nach „{ordering}“ stehen unten – vorher eine Folge ansehen.",
+                             ordering=pick[1]))
+            if len(maps) > 1:
+                hint.add_note(tr("Andere Reihenfolge: Doppelklick."))
+            remap.update({k: (e, pick[1]) for k, e in pick[2].items() if e is not None})
+        else:
+            hint.add_note(tr("Die Reihenfolgen ordnen diese Dateien unterschiedlich zu – eine Folge ansehen, "
+                             "dann per Doppelklick die passende wählen."))
+        items.append(hint)
+    return remap
 
 
 def loose_episode_title(stem: str) -> str | None:

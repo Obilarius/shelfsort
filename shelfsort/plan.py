@@ -28,10 +28,11 @@ class Op:
 @dataclass
 class Override:
     """Manual choice from the match dialog."""
-    kind: str  # "movie" | "show"
+    kind: str  # "movie" | "show" | "ordering" (which ordering a season's files are numbered by)
     tmdb_id: int
     season: int | None = None
     episodes: list[int] | None = None
+    ordering: str | None = None
 
 
 @dataclass
@@ -54,6 +55,7 @@ class PlanItem:
     # Import only: re-plan into another library of the same kind (local root folder)
     retarget: Callable[[Path], list["PlanItem"]] | None = None
     episode_info: dict | None = None  # TMDB episode (name, overview, still_path) for the details panel
+    choices: list[tuple[str, str]] = field(default_factory=list)  # orderings to pick from (value, label)
 
     def add_note(self, text: str) -> None:
         self.note = f"{self.note} · {text}" if self.note else text

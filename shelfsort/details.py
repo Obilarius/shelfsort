@@ -140,6 +140,8 @@ class DetailsPanel(QScrollArea):
             self.play_btn.setEnabled(main_video(it.source) is not None)
         self.note.setVisible(bool(it and it.note))
         self.rematch.setVisible(bool(it and it.replan))
+        if it and it.dialog_kind == "ordering":
+            self.rematch.setText(tr("Reihenfolge wählen…"))
         self.empty.setVisible(it is None or m is None)
 
         if it is None:

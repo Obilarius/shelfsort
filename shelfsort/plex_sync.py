@@ -27,7 +27,12 @@ _PLACEHOLDER = re.compile(r"^(episode|folge)\s*\d+$", re.IGNORECASE)
 # The library-wide setting uses older names: "aired" is TheTVDB, not TMDB.
 LIBRARY_ORDERING = {"aired": "tvdbAiring", "dvd": "tvdbDvd", "absolute": "tvdbAbsolute", "tmdbAiring": "tmdbAiring"}
 ORDERING_LABELS = {"tmdbAiring": N_("TMDB (Ausstrahlung)"), "tvdbAiring": N_("TheTVDB (Ausstrahlung)"),
-                   "tvdbDvd": N_("TheTVDB (DVD)"), "tvdbAbsolute": N_("TheTVDB (Absolut)")}
+                   "tvdbDvd": N_("TheTVDB (DVD)"), "tvdbAbsolute": N_("TheTVDB (Absolut)"),
+                   "tvdbDisney": N_("TheTVDB (Disney+)"), "tvdbBbcIPlayer": N_("TheTVDB (BBC iPlayer)")}
+# Release from a streaming service -> the ordering Plex has for it (Disney+ numbers Bluey differently)
+SERVICE_ORDERING = {"Disney+": "tvdbDisney", "BBC iPlayer": "tvdbBbcIPlayer"}
+# Shows Plex doesn't know yet have no list of offered orderings - try these
+DEFAULT_ORDERINGS = ["tmdbAiring", "tvdbAiring", "tvdbDvd", "tvdbDisney", "tvdbBbcIPlayer"]
 
 
 @dataclass
@@ -40,6 +45,7 @@ class PlexEpisode:
     thumb: str | None = None  # full image URL
     air_date: str = ""
     guid: str = ""  # same episode across orderings
+    duration: int = 0  # seconds, as the metadata service has it (whole minutes)
 
     def info(self) -> dict:
         """Same shape as a TMDB episode, for the details panel."""
@@ -146,6 +152,8 @@ class PlexCatalog:
         self.s.headers.update({"X-Plex-Token": plex.token, "Accept": "application/json",
                                "X-Plex-Language": self.lang})
         self._lists: dict[tuple[str, str], list[PlexEpisode]] = {}
+        self._season_keys: dict[tuple[str, str], dict[int, str]] = {}
+        self._seasons: dict[tuple[str, str, int], list[PlexEpisode]] = {}
         self._sections: list[dict] | None = None
 
     def _provider(self, path: str, ordering: str | None, language: str | None = None) -> list[dict]:
@@ -268,12 +276,65 @@ class PlexCatalog:
                     if num not in by_num:
                         by_num[num] = PlexEpisode(*num, title, summary=e.get("summary") or "", thumb=e.get("thumb"),
                                                   air_date=e.get("originallyAvailableAt") or "",
-                                                  guid=e.get("guid") or "")
+                                                  guid=e.get("guid") or "", duration=(e.get("duration") or 0) // 1000)
                     elif title and title != by_num[num].title:
                         by_num[num].alt_titles.append(title)
         result = sorted(by_num.values(), key=lambda e: (e.season, e.episode))
         self._lists[key] = result
         return result
+
+    def season_episodes(self, show: PlexShow, ordering: str, season: int) -> list[PlexEpisode]:
+        """One season of an ordering - cheaper than the whole list when only a few seasons matter."""
+        key = (show.guid, ordering, season)
+        if key not in self._seasons:
+            pid = show.guid.rsplit("/", 1)[-1]
+            if (show.guid, ordering) not in self._season_keys:
+                self._season_keys[(show.guid, ordering)] = {
+                    int(s["index"]): s["ratingKey"] for s in self._provider(f"{pid}/children", ordering, self.lang)
+                    if s.get("index") is not None}
+            rk = self._season_keys[(show.guid, ordering)].get(season)
+            eps = self._provider(f"{rk}/children", ordering, self.lang) if rk else []
+            self._seasons[key] = [PlexEpisode(season, int(e["index"]), e.get("title") or "", guid=e.get("guid") or "",
+                                              duration=(e.get("duration") or 0) // 1000)
+                                  for e in eps if e.get("index") is not None]
+        return self._seasons[key]
+
+    def alternatives(self, show: PlexShow) -> list[tuple[str, str]]:
+        """Orderings other than the show's own that files may be numbered by (absolute: one big season, left out)."""
+        options = show.options or [(v, show.label(v)) for v in DEFAULT_ORDERINGS]
+        return [(v, label) for v, label in options if v not in (show.ordering, "tvdbAbsolute")]
+
+    def file_durations(self, show: PlexShow) -> dict[tuple[int, int], int]:
+        """Length in seconds of the file behind each episode number, as the server measured it."""
+        out = {}
+        for e in self.plex._get(f"/library/metadata/{show.rating_key}/allLeaves").get("MediaContainer", {}) \
+                .get("Metadata", []):
+            media = e.get("Media") or []
+            if e.get("parentIndex") is not None and e.get("index") is not None and media and media[0].get("duration"):
+                out[(int(e["parentIndex"]), int(e["index"]))] = int(media[0]["duration"]) // 1000
+        return out
+
+    def ordering_hints(self, show: PlexShow,
+                       current: list[PlexEpisode]) -> dict[int, list[tuple[str, str, list[PlexEpisode]]]]:
+        """Seasons whose file lengths fit another ordering clearly better than the show's own:
+        {season: [(ordering, label, that season's episodes in it), best first]}."""
+        # Only where episode lengths differ can a different order show at all (Bluey: 7 min, one 8, one 28)
+        varied = set()
+        for s in {e.season for e in current}:
+            d = [e.duration for e in current if e.season == s and e.duration]
+            if d and max(d) - min(d) >= 60:
+                varied.add(s)
+        if not varied:
+            return {}
+        files = {k: v for k, v in self.file_durations(show).items() if k[0] in varied}
+        others: dict[str, tuple[str, list[PlexEpisode]]] = {}
+        for value, label in self.alternatives(show):
+            eps = [e for s in sorted({k[0] for k in files}) for e in self.season_episodes(show, value, s)]
+            if eps:
+                others[value] = (label, eps)
+        fit = ordering_fit(files, current, {v: eps for v, (_, eps) in others.items()})
+        return {s: [(v, others[v][0], [e for e in others[v][1] if e.season == s]) for v in values]
+                for s, values in fit.items()}
 
     def load_episodes(self, show: PlexShow, language: str | None = None) -> list[PlexEpisode]:
         """Episodes in the show's ordering; titles in `language` (the library's), English as a second set."""
@@ -362,6 +423,40 @@ def specials_overview(catalog: PlexCatalog, progress=None) -> tuple[list[Special
     return sorted(reports, key=lambda r: r.show.name.lower()), [str(e) for e in errors]
 
 
+def ordering_fit(files: dict[tuple[int, int], int], current: list[PlexEpisode], others: dict[str, list[PlexEpisode]],
+                 gap: int = 60, margin: int = 15) -> dict[int, list[str]]:
+    """Seasons whose file lengths fit other orderings clearly better: {season: [ordering, best first]}.
+
+    Only numbers where the two orderings put different episodes of clearly different length (`gap` seconds)
+    count, and the file has to be clearly closer (`margin`) to one of them. Both lengths come from the
+    show's own list where it has the episode - TMDB and TheTVDB give the same episode different lengths.
+    Metadata lengths are whole minutes, so one such number proves little: it takes two, and none speaking
+    for the show's own ordering.
+    """
+    cur = {(e.season, e.episode): e for e in current}
+    by_guid = {e.guid: e for e in current if e.guid}
+    found: dict[int, list[tuple[int, str]]] = {}
+    for value, eps in others.items():
+        alt = {(e.season, e.episode): e for e in eps}
+        votes: dict[int, list[int]] = {}  # season -> [for the other ordering, for the show's own]
+        for key, f in files.items():
+            here, there = cur.get(key), alt.get(key)
+            if not here or not there or there.guid == here.guid or there.guid not in by_guid:
+                continue  # same episode, or one the show's list doesn't know (TMDB ids): nothing to compare
+            c, a = here.duration, by_guid[there.guid].duration
+            if not c or not a or abs(c - a) < gap:
+                continue
+            v = votes.setdefault(key[0], [0, 0])
+            if abs(f - a) + margin <= abs(f - c):
+                v[0] += 1
+            elif abs(f - c) + margin <= abs(f - a):
+                v[1] += 1
+        for season, (yes, no) in votes.items():
+            if yes >= 2 and no == 0:
+                found.setdefault(season, []).append((yes, value))
+    return {s: [v for _, v in sorted(c, key=lambda x: -x[0])] for s, c in found.items()}
+
+
 class PlexEpisodeSource:
     """Lazy 'show -> Plex episode list' lookup for the import (loaded once per scan, on first use).
 
@@ -380,8 +475,7 @@ class PlexEpisodeSource:
     def is_new(self, show_dir: Path) -> bool:
         return self._shows is not None and str(show_dir).lower() not in self._shows
 
-    def __call__(self, show_dir: Path, tmdb_id: int | None = None,
-                 language: str | None = None) -> list[PlexEpisode] | None:
+    def _show(self, show_dir: Path, tmdb_id: int | None) -> PlexShow | None:
         if self._shows is None:
             try:
                 self._shows = self.catalog.shows()
@@ -400,6 +494,11 @@ class PlexEpisodeSource:
                     log.warning("Plex match for tmdb-%s failed: %s", tmdb_id, e)
                 self._new[tmdb_id] = PlexShow("", "", guid, self._default, show_dir) if guid else None
             show = self._new[tmdb_id]
+        return show
+
+    def __call__(self, show_dir: Path, tmdb_id: int | None = None,
+                 language: str | None = None) -> list[PlexEpisode] | None:
+        show = self._show(show_dir, tmdb_id)
         if not show:
             return None
         try:
@@ -408,6 +507,25 @@ class PlexEpisodeSource:
             self.error = str(e)
             log.warning("Plex episode list for %s failed: %s", show_dir.name, e)
             return None
+
+
+    def orderings(self, show_dir: Path, tmdb_id: int | None = None,
+                  language: str | None = None) -> list[tuple[str, str, list[PlexEpisode]]]:
+        """The other orderings Plex has for the show: (value, label, episodes) - to spot numbers that differ."""
+        show = self._show(show_dir, tmdb_id)
+        if not show:
+            return []
+        lang = (language or self.catalog.lang).split("-")[0]
+        out = []
+        for value, label in self.catalog.alternatives(show):
+            try:
+                eps = self.catalog.episode_list(show, value, [lang])
+            except Exception as e:
+                log.warning("Plex ordering %s for %s not available: %s", value, show_dir.name, e)
+                continue
+            if eps:
+                out.append((value, label, eps))
+        return out
 
 
 def find_by_title(episodes: list[PlexEpisode], title: str, near: tuple[int, int] | None = None,

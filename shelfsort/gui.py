@@ -10,8 +10,8 @@ from typing import Callable
 
 from PySide6.QtCore import QLibraryInfo, QObject, Qt, QThread, QTimer, QTranslator, QUrl, Signal, Slot
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QIcon
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QFileDialog, QHBoxLayout, QHeaderView,
+                               QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
@@ -51,7 +51,7 @@ STATUS = {
     "cancelled": (N_("Abgebrochen"), QColor(110, 118, 129, 60)),
 }
 KIND = {"movie": N_("Film"), "episode": N_("Folge"), "show_dir": N_("Serienordner"), "empty": N_("Leerer Ordner"),
-        "leftover": N_("Rest")}
+        "leftover": N_("Rest"), "season": N_("Staffel")}
 
 
 # --- background work ----------------------------------------------------------------------
@@ -786,6 +786,21 @@ class MainWindow(QMainWindow):
         table.selectRow(min(new_row, table.rowCount() - 1))
         self.log(tr("{n} Einträge → Bibliothek „{library}“", n=len(items), library=lib.title))
 
+    def _choose_ordering(self, table: PlanTable, it: PlanItem) -> None:
+        """Season whose files fit several orderings: which one are they numbered by?"""
+        labels = [label for _, label in it.choices]
+        label, ok = QInputDialog.getItem(
+            self, tr("Reihenfolge der Dateien"),
+            tr("Nach welcher Reihenfolge sind die Dateien nummeriert?\nAm besten vorher eine Folge ansehen, "
+               "bei der sich die Reihenfolgen unterscheiden."), labels, 0, False)
+        if not ok:
+            return
+        value = next(v for v, l in it.choices if l == label)
+        group = it.group
+        table.replace_group(group, it.replan(Override("ordering", 0, ordering=value)))
+        new_row = next((i for i, x in enumerate(table.items) if x.group == group), 0)
+        table.selectRow(min(new_row, table.rowCount() - 1))
+
     def _rematch(self, table: PlanTable, row: int, import_mode: bool) -> None:
         """Pick a TMDB match by hand - for the row, or for all selected rows at once."""
         if row < 0 or row >= len(table.items) or not self.tmdb or self._thread:
@@ -797,6 +812,9 @@ class MainWindow(QMainWindow):
         if not targets:
             return
         it = table.items[row] if table.items[row].replan else targets[0]
+        if it.dialog_kind == "ordering":
+            self._choose_ordering(table, it)
+            return
         multi = len(targets) > 1
         p = it.parsed
         query = it.match.title if it.match else (p.title if p else it.source.name)

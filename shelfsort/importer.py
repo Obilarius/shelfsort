@@ -6,12 +6,12 @@ from typing import Callable
 
 from .library import Library, localized
 from .matcher import find_movie, find_show, movie_by_id, norm, show_by_id
-from .naming import SHOW_NFO, episode_name, movie_file, movie_folder, movie_name, show_folder
+from .naming import SHOW_NFO, episode_code, episode_name, movie_file, movie_folder, movie_name, show_folder
 from .parse import edition_in, is_extra, is_video, parse_release, walk_videos
 from .quality import compare, quality_of
 from .i18n import tr
 from .plan import Override, PlanItem, ScanCancelled, finalize
-from .plex_sync import is_placeholder
+from .plex_sync import SERVICE_ORDERING, PlexEpisode, find_by_title, is_placeholder
 
 ProgressFn = Callable[[str, int, int], None]
 # (show folder, TMDB id, language) -> episode list in the order Plex uses / will use for that show
@@ -183,6 +183,9 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     # (e.g. TheTVDB "BBC iPlayer"), so the name matches what Plex shows for this number.
     # New shows too: Plex will number them by the library's default ordering once imported.
     in_plex = plex_eps(show_dir, match.tmdb_id, language) if plex_eps else None
+    if in_plex and not (ov and ov.episodes):
+        season, episodes = _check_numbering(item, season, episodes, in_plex, plex_eps, show_dir, match.tmdb_id,
+                                            language)
     if in_plex:
         by_num = {(e.season, e.episode): e for e in in_plex}
 
@@ -224,3 +227,51 @@ def _plan_episode(item: PlanItem, video: Path, tmdb, lib: Library, ov: Override 
     if item.target.exists():
         item.status = "conflict"
         item.add_note(tr("Ziel existiert bereits"))
+
+
+def _check_numbering(item: PlanItem, season: int, episodes: list[int], in_plex: list[PlexEpisode], plex_eps,
+                     show_dir: Path, tmdb_id: int, language: str | None) -> tuple[int, list[int]]:
+    """Is the number in the release name the episode Plex means by it? Returns the number to use.
+
+    Releases count the way their source does: a Disney+ release numbers Bluey season 3 differently than
+    TheTVDB, which Plex uses. An episode title in the name decides; a streaming tag translates the number
+    through that service's ordering; a number that means another episode in some ordering gets a review.
+    """
+    if len(episodes) != 1:
+        return season, episodes
+    p, n = item.parsed, episodes[0]
+    here = next((e for e in in_plex if (e.season, e.episode) == (season, n)), None)
+    if p.episode_title:
+        hit, score = find_by_title(in_plex, p.episode_title, (season, n))
+        if hit is not None and score >= 0.9:
+            if hit is not here:
+                item.status = "review"
+                item.add_note(tr("Nummer nach Titel im Namen: {old} → {new} („{title}“)",
+                                 old=episode_code(season, [n]), new=episode_code(hit.season, [hit.episode]),
+                                 title=hit.title))
+            return hit.season, [hit.episode]
+    orderings = getattr(plex_eps, "orderings", None)
+    differ = []  # (ordering, label, episode) where another ordering means another episode by this number
+    for value, label, eps in (orderings(show_dir, tmdb_id, language) if orderings else []):
+        other = next((e for e in eps if (e.season, e.episode) == (season, n)), None)
+        if other and (here is None or (other.guid and other.guid != here.guid)):
+            differ.append((value, label, other))
+    if not differ:
+        return season, episodes
+    item.status = "review"
+    wanted = SERVICE_ORDERING.get(p.service or "")
+    src = next((d for d in differ if d[0] == wanted or (p.service and p.service.lower() in d[1].lower())), None)
+    mapped = next((e for e in in_plex if src and e.guid and e.guid == src[2].guid), None)
+    if mapped:
+        item.add_note(tr("{service}-Release: {old} ist dort „{title}“ – in Plex {new}", service=p.service,
+                         old=episode_code(season, [n]), title=mapped.title,
+                         new=episode_code(mapped.season, [mapped.episode])))
+        return mapped.season, [mapped.episode]
+    names: dict[str, list[str]] = {}
+    for _, label, e in differ:
+        names.setdefault(e.title, []).append(label)
+    item.add_note(tr("{code} ist je nach Reihenfolge eine andere Folge ({others}) – bitte prüfen",
+                     code=episode_code(season, [n]),
+                     others="; ".join(tr("„{title}“ bei {orderings}", title=t, orderings=", ".join(labels))
+                                      for t, labels in names.items())))
+    return season, episodes
